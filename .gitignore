@@ -16,3 +16,5 @@ venv/
 *.json
 *.csv
 *.vtt
+database/.env
+.env
