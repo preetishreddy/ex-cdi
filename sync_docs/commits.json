@@ -1,0 +1,411 @@
+[
+  {
+    "sha": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+    "commit": {
+      "author": {
+        "name": "Dave Rossi",
+        "email": "dave.rossi@meridiantech.com",
+        "date": "2026-01-13T11:30:00Z"
+      },
+      "message": "hotfix: replace fixed retry delay with exponential backoff and jitter\n\nStripe outage exposed critical flaw in retry handler. Fixed 3s delay\ncaused thundering herd when Stripe recovered. New implementation:\n- Exponential backoff: base_delay * 2^attempt + random jitter\n- Max delay capped at 60s\n- Max 5 retry attempts before marking payment as failed\n\nRelated: PAY-204, PAY-205"
+    },
+    "files": [
+      {
+        "filename": "billing/retry_handler.py",
+        "additions": 58,
+        "deletions": 15,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
+    "commit": {
+      "author": {
+        "name": "Dave Rossi",
+        "email": "dave.rossi@meridiantech.com",
+        "date": "2026-01-13T12:15:00Z"
+      },
+      "message": "feat: add circuit breaker to retry handler\n\nAdds circuit breaker pattern to prevent cascading failures during\nupstream outages. Circuit trips after 5 consecutive failures,\nstays open for 30s, then half-opens to test recovery.\n\nRelated: PAY-205"
+    },
+    "files": [
+      {
+        "filename": "billing/retry_handler.py",
+        "additions": 42,
+        "deletions": 3,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
+    "commit": {
+      "author": {
+        "name": "Dave Rossi",
+        "email": "dave.rossi@meridiantech.com",
+        "date": "2026-01-14T09:45:00Z"
+      },
+      "message": "test: add comprehensive tests for exponential backoff and circuit breaker\n\nCovers: backoff timing, jitter bounds, max delay cap, circuit breaker\nstate transitions (closed -> open -> half-open -> closed), and\nthundering herd prevention under simulated Stripe outage.\n\nRelated: PAY-205"
+    },
+    "files": [
+      {
+        "filename": "billing/tests/test_retry_handler.py",
+        "additions": 127,
+        "deletions": 0,
+        "status": "added"
+      }
+    ]
+  },
+  {
+    "sha": "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
+    "commit": {
+      "author": {
+        "name": "Priya Sharma",
+        "email": "priya.sharma@meridiantech.com",
+        "date": "2026-01-14T10:30:00Z"
+      },
+      "message": "feat: implement TransactionList component with pagination and filtering\n\nCore transaction list view for merchant dashboard redesign.\n- Server-side pagination with configurable page size\n- Column-based filtering for status, amount, date range\n- Sortable columns with visual indicators\n- Uses React Query with REST polling (30s interval)\n\nRelated: PAY-211"
+    },
+    "files": [
+      {
+        "filename": "merchant_dashboard/src/components/TransactionList.tsx",
+        "additions": 189,
+        "deletions": 0,
+        "status": "added"
+      }
+    ]
+  },
+  {
+    "sha": "e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4",
+    "commit": {
+      "author": {
+        "name": "Priya Sharma",
+        "email": "priya.sharma@meridiantech.com",
+        "date": "2026-01-14T14:00:00Z"
+      },
+      "message": "feat: add StatusBadge and DataTable shared components\n\nReusable UI components for the merchant dashboard:\n- StatusBadge: renders payment status with color-coded variants\n- DataTable: generic sortable/filterable table with server-side support\n\nRelated: PAY-213"
+    },
+    "files": [
+      {
+        "filename": "merchant_dashboard/src/components/common/StatusBadge.tsx",
+        "additions": 45,
+        "deletions": 0,
+        "status": "added"
+      },
+      {
+        "filename": "merchant_dashboard/src/components/common/DataTable.tsx",
+        "additions": 112,
+        "deletions": 0,
+        "status": "added"
+      }
+    ]
+  },
+  {
+    "sha": "f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5",
+    "commit": {
+      "author": {
+        "name": "Marcus Thompson",
+        "email": "marcus.thompson@meridiantech.com",
+        "date": "2026-01-15T10:00:00Z"
+      },
+      "message": "feat: add GitHub Actions workflow for production deployments\n\nReplaces Jenkins deploy-production job with GitHub Actions workflow.\nIncludes: checkout, test, Docker build, ECR push, ECS rolling deploy,\npost-deployment health checks.\n\nUses reusable workflow pattern for cross-team adoption.\nJenkins pipeline is now deprecated — do not use for new deployments.\n\nRelated: PAY-202"
+    },
+    "files": [
+      {
+        "filename": ".github/workflows/deploy-production.yml",
+        "additions": 98,
+        "deletions": 0,
+        "status": "added"
+      }
+    ]
+  },
+  {
+    "sha": "7f3a912b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f",
+    "commit": {
+      "author": {
+        "name": "Marcus Thompson",
+        "email": "marcus.thompson@meridiantech.com",
+        "date": "2026-01-15T11:30:00Z"
+      },
+      "message": "chore: mark Jenkinsfile as deprecated\n\nAdded deprecation notice to top of Jenkinsfile. All new deployments\nshould use .github/workflows/deploy-production.yml instead.\n\nRelated: PAY-201"
+    },
+    "files": [
+      {
+        "filename": "Jenkinsfile",
+        "additions": 5,
+        "deletions": 0,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7",
+    "commit": {
+      "author": {
+        "name": "Dave Rossi",
+        "email": "dave.rossi@meridiantech.com",
+        "date": "2026-01-15T13:00:00Z"
+      },
+      "message": "fix: handle Stripe webhook clock skew in signature verification\n\nIntermittent signature verification failures caused by ECS task clock\ndrift. Increased Stripe signature tolerance window from 300s to 600s\nas a safety margin. Root cause (NTP sync interval) being fixed by\nMarcus on the infrastructure side.\n\nRelated: PAY-222"
+    },
+    "files": [
+      {
+        "filename": "billing/stripe_webhook.py",
+        "additions": 12,
+        "deletions": 4,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8",
+    "commit": {
+      "author": {
+        "name": "Lisa Park",
+        "email": "lisa.park@meridiantech.com",
+        "date": "2026-01-15T16:00:00Z"
+      },
+      "message": "fix: add composite index on payments(merchant_id, created_at)\n\nThe get_merchant_transactions query was doing a full table scan on\n8M+ rows. Added composite index which brought p99 latency from\n4.2s down to 180ms.\n\nRelated: PAY-207"
+    },
+    "files": [
+      {
+        "filename": "billing/migrations/003_add_payment_index.sql",
+        "additions": 8,
+        "deletions": 0,
+        "status": "added"
+      }
+    ]
+  },
+  {
+    "sha": "c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9",
+    "commit": {
+      "author": {
+        "name": "Priya Sharma",
+        "email": "priya.sharma@meridiantech.com",
+        "date": "2026-01-15T17:00:00Z"
+      },
+      "message": "feat: add React error boundaries for merchant dashboard sections\n\nWraps TransactionList, AnalyticsDashboard, and SubscriptionManager\nin error boundaries. Each shows a retry button instead of crashing\nthe entire page.\n\nRelated: PAY-223"
+    },
+    "files": [
+      {
+        "filename": "merchant_dashboard/src/components/ErrorBoundary.tsx",
+        "additions": 56,
+        "deletions": 0,
+        "status": "added"
+      },
+      {
+        "filename": "merchant_dashboard/src/App.tsx",
+        "additions": 18,
+        "deletions": 6,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0",
+    "commit": {
+      "author": {
+        "name": "Marcus Thompson",
+        "email": "marcus.thompson@meridiantech.com",
+        "date": "2026-01-15T18:00:00Z"
+      },
+      "message": "fix: update NTP sync interval on ECS task definitions\n\nReduced NTP sync interval from 1 hour to 5 minutes to prevent\nclock drift. This was causing Stripe webhook signature verification\nfailures.\n\nRelated: PAY-222"
+    },
+    "files": [
+      {
+        "filename": "infrastructure/ecs-task-definition.json",
+        "additions": 4,
+        "deletions": 2,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1",
+    "commit": {
+      "author": {
+        "name": "Marcus Thompson",
+        "email": "marcus.thompson@meridiantech.com",
+        "date": "2026-01-16T10:00:00Z"
+      },
+      "message": "feat: implement token bucket rate limiter with Redis backend\n\nApplication-level rate limiting using token bucket algorithm.\n- Redis-backed for distributed state\n- Per-merchant and per-endpoint configuration\n- Billing endpoints get 3x default rate (bursty batch processing)\n- Configurable via admin API\n\nDecision made in Thursday architecture review: token bucket over\nsliding window due to billing batch processing use case.\n\nRelated: PAY-216"
+    },
+    "files": [
+      {
+        "filename": "platform_infra/rate_limiter.py",
+        "additions": 134,
+        "deletions": 0,
+        "status": "added"
+      },
+      {
+        "filename": "platform_infra/tests/test_rate_limiter.py",
+        "additions": 89,
+        "deletions": 0,
+        "status": "added"
+      }
+    ]
+  },
+  {
+    "sha": "e5f6a7b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
+    "commit": {
+      "author": {
+        "name": "Sarah Chen",
+        "email": "sarah.chen@meridiantech.com",
+        "date": "2026-01-16T11:00:00Z"
+      },
+      "message": "docs: add architecture decision record for rate limiting approach\n\nADR-007: Token Bucket Rate Limiting\n- Decision: Use token bucket algorithm over sliding window\n- Context: Enterprise partnership launch requires granular rate limiting\n- Rationale: Token bucket handles bursty billing batch processing\n- Consequences: Slightly more complex merchant-facing documentation\n\nRelated: PAY-215"
+    },
+    "files": [
+      {
+        "filename": "docs/adr/007-token-bucket-rate-limiting.md",
+        "additions": 52,
+        "deletions": 0,
+        "status": "added"
+      }
+    ]
+  },
+  {
+    "sha": "f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2",
+    "commit": {
+      "author": {
+        "name": "Lisa Park",
+        "email": "lisa.park@meridiantech.com",
+        "date": "2026-01-16T15:30:00Z"
+      },
+      "message": "feat: add SQS dead letter queue for failed Stripe webhook events\n\nFailed webhook events are now sent to an SQS DLQ instead of being\nsilently dropped. A retry Lambda reprocesses events with exponential\nbackoff. Includes CloudWatch alarm for DLQ depth.\n\nRelated: PAY-206"
+    },
+    "files": [
+      {
+        "filename": "billing/stripe_webhook.py",
+        "additions": 35,
+        "deletions": 8,
+        "status": "modified"
+      },
+      {
+        "filename": "billing/webhook_dlq.py",
+        "additions": 67,
+        "deletions": 0,
+        "status": "added"
+      },
+      {
+        "filename": "infrastructure/sqs-dlq.tf",
+        "additions": 28,
+        "deletions": 0,
+        "status": "added"
+      }
+    ]
+  },
+  {
+    "sha": "a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3",
+    "commit": {
+      "author": {
+        "name": "Priya Sharma",
+        "email": "priya.sharma@meridiantech.com",
+        "date": "2026-01-16T16:00:00Z"
+      },
+      "message": "feat: implement WebSocket hook for real-time transaction updates\n\nReplaces REST polling with WebSocket-based real-time updates.\n- useTransactionSocket hook manages connection lifecycle\n- Automatic reconnection with exponential backoff\n- Falls back to REST polling (30s) if WebSocket unavailable\n- Integrates with existing React Query cache\n\nDecision from Thursday architecture review: WebSocket preferred\nover polling for merchant-facing real-time updates.\n\nRelated: PAY-212"
+    },
+    "files": [
+      {
+        "filename": "merchant_dashboard/src/hooks/useTransactionSocket.ts",
+        "additions": 95,
+        "deletions": 0,
+        "status": "added"
+      },
+      {
+        "filename": "merchant_dashboard/src/components/TransactionList.tsx",
+        "additions": 15,
+        "deletions": 22,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4",
+    "commit": {
+      "author": {
+        "name": "Marcus Thompson",
+        "email": "marcus.thompson@meridiantech.com",
+        "date": "2026-01-16T17:00:00Z"
+      },
+      "message": "feat: add WebSocket endpoint and ALB configuration for merchant dashboard\n\nAdds FastAPI WebSocket endpoint for pushing transaction updates.\nConfigures ALB listener rule for WebSocket upgrade on /ws/* paths.\n\nRelated: PAY-225"
+    },
+    "files": [
+      {
+        "filename": "platform_infra/websocket_server.py",
+        "additions": 78,
+        "deletions": 0,
+        "status": "added"
+      },
+      {
+        "filename": "infrastructure/alb-config.tf",
+        "additions": 15,
+        "deletions": 2,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5",
+    "commit": {
+      "author": {
+        "name": "Dave Rossi",
+        "email": "dave.rossi@meridiantech.com",
+        "date": "2026-01-17T09:30:00Z"
+      },
+      "message": "refactor: extract payment processor retry logic into shared utility\n\nMoved exponential backoff + circuit breaker into a shared utility\nmodule so it can be reused by the webhook receiver and invoice\ngenerator. Part of the retry pattern audit (PAY-219).\n\nRelated: PAY-219"
+    },
+    "files": [
+      {
+        "filename": "billing/utils/resilience.py",
+        "additions": 85,
+        "deletions": 0,
+        "status": "added"
+      },
+      {
+        "filename": "billing/retry_handler.py",
+        "additions": 8,
+        "deletions": 45,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6",
+    "commit": {
+      "author": {
+        "name": "Dave Rossi",
+        "email": "dave.rossi@meridiantech.com",
+        "date": "2026-01-17T11:00:00Z"
+      },
+      "message": "fix: apply exponential backoff to webhook receiver retry logic\n\nWebhook receiver was using fixed 5s retry interval (same bug as\npayment processor). Now uses shared resilience utility.\n\nRelated: PAY-219"
+    },
+    "files": [
+      {
+        "filename": "billing/stripe_webhook.py",
+        "additions": 10,
+        "deletions": 18,
+        "status": "modified"
+      }
+    ]
+  },
+  {
+    "sha": "e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7",
+    "commit": {
+      "author": {
+        "name": "Lisa Park",
+        "email": "lisa.park@meridiantech.com",
+        "date": "2026-01-17T14:00:00Z"
+      },
+      "message": "chore: verify and fix Docker Compose setup for fresh clone\n\nFixed three issues in docker-compose.yml that prevented clean setup:\n- Pinned postgres image to 15.4 (latest had breaking changes)\n- Added health check for Redis container\n- Fixed volume mount path for billing service config\n\nPreparing for new team member onboarding Monday.\n\nRelated: PAY-220"
+    },
+    "files": [
+      {
+        "filename": "docker-compose.yml",
+        "additions": 12,
+        "deletions": 8,
+        "status": "modified"
+      }
+    ]
+  }
+]

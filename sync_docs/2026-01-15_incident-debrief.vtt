@@ -1,0 +1,64 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:08.000
+James O'Brien: Alright, this is the incident debrief for Monday's Stripe retry failure. Dave, take it away.
+
+00:00:08.500 --> 00:00:22.000
+Dave Rossi: Thanks James. So let me walk through the timeline. At 7:58 AM on Monday, Stripe's payment processing API started returning 503 errors. Our monitoring picked this up at 8:05 AM when Datadog alerts fired for payment failure rate exceeding threshold.
+
+00:00:22.000 --> 00:00:40.500
+Dave Rossi: The root cause of our issue was not the Stripe outage itself. It was our retry handler's behavior during the outage. The retry handler was configured with a fixed three-second delay and unlimited retry attempts. So every failed payment immediately started retrying every three seconds. Within ten minutes, we had thousands of retry requests queued up.
+
+00:00:40.500 --> 00:00:58.000
+Dave Rossi: When Stripe recovered at approximately 9:30 AM, all those queued retries hit Stripe simultaneously. This caused a thundering herd effect. Stripe started throttling us, which caused more retries, which caused more throttling. It took until about 11:30 AM for the system to fully stabilize.
+
+00:00:58.000 --> 00:01:12.500
+Dave Rossi: The fix I deployed introduced three changes. First, exponential backoff with jitter — retries now wait one second, then two, then four, then eight, up to a maximum of sixty seconds, with random jitter added to each delay. Second, a maximum retry count of five attempts before the payment is marked as failed. Third, a circuit breaker that trips after five consecutive failures and stays open for thirty seconds.
+
+00:01:13.000 --> 00:01:20.000
+James O'Brien: What was the business impact?
+
+00:01:20.000 --> 00:01:35.000
+Dave Rossi: We had approximately 340 payments that failed during the incident window. Of those, about 280 were successfully reprocessed after the system stabilized. The remaining 60 required manual intervention. No revenue was lost — all payments were eventually processed — but some merchants received delayed confirmation emails.
+
+00:01:35.500 --> 00:01:42.000
+James O'Brien: Lisa, you were the first to spot the alerts. Walk us through the detection.
+
+00:01:42.000 --> 00:01:58.000
+Lisa Park: I got the Datadog alert on my phone at 8:05 AM. The alert was for payment failure rate exceeding five percent. I pulled up the dashboard and could see the failure rate climbing rapidly. I pinged Dave in Slack at 8:10 AM and he was online by 8:15 AM. The detection was fast. What wasn't fast was understanding the root cause. We didn't have good visibility into the retry handler's behavior.
+
+00:01:58.000 --> 00:02:08.500
+Lisa Park: We have alerts for payment failures, but we don't have alerts for retry queue depth, circuit breaker state, or Stripe API response latency. If we'd had those, we would have understood the thundering herd problem much faster.
+
+00:02:09.000 --> 00:02:18.500
+Marcus Thompson: I want to add to that. Our overall observability for the billing service is pretty thin compared to the API gateway. The API gateway has full APM tracing, request-level dashboards, the works. The billing service has basic error rate and latency alerts, and that's about it.
+
+00:02:19.000 --> 00:02:30.000
+Sarah Chen: Agreed. Dave, I know this is your domain, but I think part of the issue here is that the billing service has been maintained primarily by you for a long time, and the monitoring has evolved organically rather than being designed holistically.
+
+00:02:30.000 --> 00:02:42.000
+Dave Rossi: That's fair. I'll be honest, there are a lot of things in the billing service that are only in my head. The retry logic, the webhook verification flow, the invoice generator's timezone handling — none of that is properly documented. I've been the only person deep in this code for over a year.
+
+00:02:42.000 --> 00:02:55.500
+James O'Brien: That's actually a bigger concern for me than the incident itself. Dave, we need to start transferring that knowledge. Lisa is ramping up on the billing codebase, which is great, but we need documentation too. Especially with you going on leave in two weeks.
+
+00:02:55.500 --> 00:03:05.000
+Dave Rossi: I know. I'll try to document what I can, but honestly, writing up all the edge cases and tribal knowledge that's accumulated over eighteen months is not a one-week task.
+
+00:03:05.000 --> 00:03:18.000
+Priya Sharma: Can I raise something related? The merchant dashboard also doesn't have proper error monitoring. Right now if a component crashes, we get nothing. I'm adding error boundaries this week, but we need actual error tracking — Sentry or something similar. Merchants are probably hitting errors we don't even know about.
+
+00:03:18.000 --> 00:03:30.000
+James O'Brien: Good flag, Priya. Let's create a ticket for that. Actually, let's create a broader initiative around observability. Marcus, can you own an observability audit across all our services? I want to know where our monitoring gaps are.
+
+00:03:30.000 --> 00:03:35.000
+Marcus Thompson: Sure. I'll put together a proposal and bring it to next week's architecture review.
+
+00:03:35.500 --> 00:03:48.000
+Sarah Chen: One more thing. Dave mentioned that the webhook receiver and the invoice generator both have the same fixed-interval retry pattern. We need to fix those too before they bite us. Dave, can you file tickets for those?
+
+00:03:48.000 --> 00:03:55.000
+Dave Rossi: Already filed PAY-219 for a full retry audit. I'll break it into specific sub-tasks once I've done the initial audit.
+
+00:03:55.500 --> 00:04:08.000
+James O'Brien: Okay. Action items: Dave fixes remaining retry patterns and starts knowledge transfer documentation. Lisa continues ramping on billing. Marcus proposes an observability audit. Priya adds error tracking to the dashboard. Let's follow up on all of these in Friday's standup. Thanks everyone.

@@ -1,0 +1,70 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:04.500
+Sarah Chen: Alright everyone, let's get started with the architecture review.
+
+00:00:04.500 --> 00:00:09.800
+Sarah Chen: We have three items on the agenda today. First, the CI/CD migration. Second, the rate limiting proposal. Third, quick update on the dashboard redesign.
+
+00:00:10.200 --> 00:00:18.500
+Sarah Chen: Let's start with CI/CD. Marcus, where are we on the Jenkins to GitHub Actions migration?
+
+00:00:18.500 --> 00:00:32.000
+Marcus Thompson: So I've been scoping this out since the Q4 decision. I've got a working prototype of the production deployment workflow in GitHub Actions. It mirrors what Jenkins does today — checkout, test, Docker build, ECR push, ECS deploy, health check. I'm planning to have it production-ready by Wednesday.
+
+00:00:32.000 --> 00:00:40.500
+Sarah Chen: Good. I want to be clear about the timeline here. Starting today, we are migrating all deployments to GitHub Actions. Jenkins is being deprecated effective immediately for all new services.
+
+00:00:40.500 --> 00:00:52.000
+Sarah Chen: For existing services, I want them migrated by end of this sprint. Marcus, that means billing, the API gateway, and the merchant dashboard API all need to be using the new workflow by January 24th.
+
+00:00:52.000 --> 00:01:05.200
+Dave Rossi: Hold on, can we keep Jenkins as a fallback for a few weeks? The billing service has some custom Jenkins pipeline steps for database migrations that I'm not sure translate directly to GitHub Actions. If something goes wrong during a billing deploy, I want a known-good fallback.
+
+00:01:05.200 --> 00:01:18.000
+Sarah Chen: I understand the concern, Dave, but maintaining two parallel CI/CD systems is exactly the kind of complexity that bites us. Marcus, can you work with Dave this week to make sure the billing service's deployment needs are covered in the GitHub Actions workflow?
+
+00:01:18.000 --> 00:01:26.500
+Marcus Thompson: Yeah, absolutely. Dave, let's sync after this meeting. I'll need you to walk me through the database migration steps in the Jenkinsfile so I can port them over.
+
+00:01:26.500 --> 00:01:31.000
+Dave Rossi: Fine, but I want to be the one to test the first billing deploy through the new pipeline.
+
+00:01:31.000 --> 00:01:35.500
+Sarah Chen: Agreed. Dave owns the first billing deploy through GitHub Actions. Moving on.
+
+00:01:36.000 --> 00:01:48.000
+Sarah Chen: Rate limiting. We need application-level rate limiting before the enterprise partnership launch in February. Right now we're relying entirely on AWS API Gateway rate limits, which are per-API-key at a flat rate. That's not granular enough.
+
+00:01:48.000 --> 00:01:58.500
+Sarah Chen: I want per-endpoint, per-merchant rate limiting that we control. Marcus, you've been looking at the options. What's your recommendation?
+
+00:01:58.500 --> 00:02:15.000
+Marcus Thompson: I've looked at two approaches. Option one is a token bucket algorithm backed by Redis. Option two is a sliding window counter, also Redis-backed. Token bucket is more flexible — it allows bursts as long as the average rate stays under the limit. Sliding window is stricter but simpler to reason about.
+
+00:02:15.000 --> 00:02:28.500
+Dave Rossi: I'd push for token bucket. The billing API has merchants that do batch invoice processing — they'll send fifty requests in a burst at the start of the month and then nothing for weeks. A sliding window would reject those bursts even though the average rate is well under any reasonable limit.
+
+00:02:28.500 --> 00:02:38.000
+Marcus Thompson: That's a fair point. The billing use case is inherently bursty. I'm leaning token bucket too, but I want to flag that token bucket is slightly harder to explain to API partners. When a merchant asks why their request was rejected, the token bucket math is less intuitive than sliding window.
+
+00:02:38.000 --> 00:02:48.000
+Sarah Chen: Let's prototype both this week and compare. Marcus, can you have both implementations ready by Thursday? We'll make the final call in Thursday's review.
+
+00:02:48.000 --> 00:02:51.500
+Marcus Thompson: Yeah, I can do that.
+
+00:02:52.000 --> 00:03:00.000
+Sarah Chen: Last item. Priya, quick update on the merchant dashboard redesign?
+
+00:03:00.000 --> 00:03:15.500
+Priya Sharma: Phase 1 is on track. The TransactionList component is mostly done — pagination, filtering, sorting all work. I'm using React Query with REST polling right now, 30-second intervals. I should have it wrapped up by mid-week.
+
+00:03:15.500 --> 00:03:25.000
+Sarah Chen: Good. Keep me posted if you hit any blockers. Let's make sure we have a clean demo for the stakeholder review at end of month.
+
+00:03:25.000 --> 00:03:28.500
+Priya Sharma: Will do.
+
+00:03:28.500 --> 00:03:35.000
+Sarah Chen: Alright, that's it for today. Marcus and Dave, please sync on the billing pipeline after this. Thanks everyone.
