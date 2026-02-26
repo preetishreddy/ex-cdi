@@ -1,6 +1,7 @@
 from django.db.models import Q
 from rest_framework import generics, views
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from knowledge_base.models import (
     GitCommit, JiraTicket, ConfluencePage,
@@ -16,7 +17,12 @@ from .serializers import (
     ProjectSerializer,
     EntityReferenceSerializer,
 )
-from rest_framework.views import APIView
+from .ingestion import (
+    run_github_ingest,
+    run_jira_ingest,
+    run_confluence_ingest,
+    run_meeting_ingest,
+)
 
 class HelloPreetyView(APIView):
     def get(self, request):
@@ -154,3 +160,86 @@ class SearchView(views.APIView):
             'pages': ConfluencePageListSerializer(pages, many=True).data,
             'meetings': MeetingListSerializer(meetings, many=True).data,
         })
+
+
+# ── Ingest ────────────────────────────────────────────────────────────────────
+
+class IngestGithubView(APIView):
+    def post(self, request):
+        try:
+            result = run_github_ingest()
+            return Response(result)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class IngestJiraView(APIView):
+    def post(self, request):
+        try:
+            result = run_jira_ingest()
+            return Response(result)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class IngestConfluenceView(APIView):
+    def post(self, request):
+        try:
+            result = run_confluence_ingest()
+            return Response(result)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class IngestMeetingView(APIView):
+    def post(self, request):
+        vtt_file = request.FILES.get('file')
+        if not vtt_file:
+            return Response(
+                {'error': 'No file uploaded. Send a .vtt file with key "file".'},
+                status=400,
+            )
+        if not vtt_file.name.endswith('.vtt'):
+            return Response({'error': 'File must be a .vtt file.'}, status=400)
+        try:
+            vtt_content = vtt_file.read().decode('utf-8')
+            result = run_meeting_ingest(vtt_content, vtt_file.name)
+            return Response(result)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+# ── Delete ────────────────────────────────────────────────────────────────────
+
+ENTITY_MAP = {
+    'commits':  (GitCommit,      'sha'),
+    'tickets':  (JiraTicket,     'issue_key'),
+    'pages':    (ConfluencePage, 'pk'),
+    'meetings': (Meeting,        'pk'),
+    'projects': (Project,        'pk'),
+}
+
+class DeleteView(APIView):
+    """
+    DELETE /api/delete/<entity_type>/<id>/
+
+    entity_type : commits | tickets | pages | meetings | projects
+    id          : sha (commits), issue_key (tickets), uuid (everything else)
+    """
+    def delete(self, request, entity_type, id):
+        if entity_type not in ENTITY_MAP:
+            return Response(
+                {'error': f'Unknown entity type "{entity_type}". '
+                          f'Choose from: {", ".join(ENTITY_MAP.keys())}'},
+                status=400,
+            )
+        model, lookup_field = ENTITY_MAP[entity_type]
+        obj = generics.get_object_or_404(model, **{lookup_field: id})
+        obj.delete()
+        return Response({'deleted': True, 'entity_type': entity_type, 'id': id})

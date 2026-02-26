@@ -34,4 +34,11 @@ urlpatterns = [
     path("search/", views.SearchView.as_view(), name="search"),
     # test
     path("test/", views.HelloPreetyView.as_view(), name="search"),
+    # Ingest
+    path("ingest/github/", views.IngestGithubView.as_view(), name="ingest-github"),
+    path("ingest/jira/", views.IngestJiraView.as_view(), name="ingest-jira"),
+    path("ingest/confluence/", views.IngestConfluenceView.as_view(), name="ingest-confluence"),
+    path("ingest/meetings/", views.IngestMeetingView.as_view(), name="ingest-meetings"),
+    # Delete
+    path("delete/<str:entity_type>/<str:id>/", views.DeleteView.as_view(), name="delete"),
 ]
