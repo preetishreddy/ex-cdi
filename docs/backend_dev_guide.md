@@ -9,13 +9,15 @@ A practical guide for backend developers working on the Onboarding AI project.
 1. [Quick Start](#quick-start)
 2. [Project Structure](#project-structure)
 3. [Environment Setup](#environment-setup)
-4. [Running the Application](#running-the-application)
-5. [Data Extraction Scripts](#data-extraction-scripts)
-6. [Working with the Database](#working-with-the-database)
-7. [Django Admin](#django-admin)
-8. [API Credentials](#api-credentials)
-9. [Common Tasks](#common-tasks)
-10. [Troubleshooting](#troubleshooting)
+4. [Database Setup](#database-setup)
+5. [Running the Application](#running-the-application)
+6. [Data Ingestion](#data-ingestion)
+7. [Data Extraction Scripts](#data-extraction-scripts)
+8. [Working with the Database](#working-with-the-database)
+9. [Django Admin](#django-admin)
+10. [API Credentials](#api-credentials)
+11. [Common Tasks](#common-tasks)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -62,22 +64,25 @@ Onboarding_AI/
     ├── knowledge_base/           # Main Django app
     │   ├── __init__.py
     │   ├── apps.py
-    │   ├── models.py             # Database models (8 models)
+    │   ├── models.py             # Database models (11 models)
     │   ├── admin.py              # Admin interface configuration
     │   └── management/
     │       └── commands/
-    │           └── ingest_data.py    # Legacy file ingestion
+    │           └── ingest_data.py    # Data ingestion command
     │
-    ├── scripts/                  # Data extraction scripts
-    │   ├── extract_github.py     # Fetch commits from GitHub
-    │   ├── extract_confluence.py # Fetch pages from Confluence
-    │   └── extract_jira.py       # Fetch tickets from Jira
+    ├── scripts/                  # Data extraction scripts (API-based)
+    │   ├── extract_github.py     # Fetch commits from GitHub API
+    │   ├── extract_confluence.py # Fetch pages from Confluence API
+    │   └── extract_jira.py       # Fetch tickets from Jira API
     │
     ├── sql/
-    │   └── 001_create_schema.sql # Original SQL schema
+    │   ├── 000_complete_schema.sql   # Complete database schema
+    │   └── 001_create_sprints_tables.sql
     │
     └── docs/
         ├── BACKEND_DEVELOPER_GUIDE.md
+        ├── DB_CONNECTION_GUIDE.md
+        ├── EMPLOYEES_TABLE.md
         └── DATA_SOURCE_SETUP_GUIDE.md
 ```
 
@@ -88,16 +93,17 @@ Onboarding_AI/
 ### Prerequisites
 
 - Python 3.10+
-- PostgreSQL 14+ (we use PostgreSQL 18)
+- PostgreSQL 14+ (we use PostgreSQL 16 on Render)
 - Git
 
 ### Step 1: Clone and Navigate
 
 ```bash
-cd ~/Desktop/Onboarding_AI/database
+git clone https://github.com/preetishreddy/ex-cdi.git
+cd ex-cdi/database
 ```
 
-### Step 2: Create Virtual Environment (if not exists)
+### Step 2: Create Virtual Environment
 
 ```bash
 python3 -m venv ../venv
@@ -113,39 +119,36 @@ pip install -r requirements.txt
 ### Step 4: Configure Environment Variables
 
 ```bash
-# Copy template
 cp .env.example .env
-
-# Edit with your credentials
 nano .env
 ```
 
 **Required variables:**
 
 ```bash
-# Database
+# Database (Render Cloud)
 DB_NAME=project_knowledge
-DB_USER=postgres
-DB_PASSWORD=your_password
-DB_HOST=localhost
+DB_USER=onboarding_user
+DB_PASSWORD=T9hSACQXUiLLlJfNcxM1hBEwwRWYAnvQ
+DB_HOST=dpg-d6evhe8gjchc73ac2mmg-a.oregon-postgres.render.com
 DB_PORT=5432
 
 # Django
 DEBUG=True
 SECRET_KEY=your-secret-key-here
 
-# GitHub
+# GitHub (for API extraction)
 GITHUB_TOKEN=ghp_xxxxxxxxxxxx
-GITHUB_OWNER=nkousik18
-GITHUB_REPO=LoanQA-MLOps
+GITHUB_OWNER=your-org
+GITHUB_REPO=your-repo
 
-# Jira & Confluence (same token works for both)
-JIRA_DOMAIN=onboardingaii.atlassian.net
+# Jira & Confluence
+JIRA_DOMAIN=your-domain.atlassian.net
 JIRA_EMAIL=your-email@gmail.com
 JIRA_API_TOKEN=your-atlassian-api-token
 JIRA_PROJECT_KEY=ONBOARD
 
-CONFLUENCE_DOMAIN=onboardingaii.atlassian.net
+CONFLUENCE_DOMAIN=your-domain.atlassian.net
 CONFLUENCE_EMAIL=your-email@gmail.com
 CONFLUENCE_API_TOKEN=your-atlassian-api-token
 CONFLUENCE_SPACE_KEY=ONBOARD
@@ -158,15 +161,62 @@ CONFLUENCE_SPACE_ID=1474564
 python manage.py check
 ```
 
-If successful, you'll see: `System check identified no issues (0 silenced).`
+---
 
-### Step 6: Run Migrations (first time only)
+## Database Setup
+
+### Database Location
+
+The database is hosted on **Render** (cloud):
+
+| Field | Value |
+|-------|-------|
+| Host | `dpg-d6evhe8gjchc73ac2mmg-a.oregon-postgres.render.com` |
+| Port | `5432` |
+| Database | `project_knowledge` |
+| Username | `onboarding_user` |
+
+### Connect to Database
 
 ```bash
-python manage.py migrate
+psql "postgresql://onboarding_user:T9hSACQXUiLLlJfNcxM1hBEwwRWYAnvQ@dpg-d6evhe8gjchc73ac2mmg-a.oregon-postgres.render.com/project_knowledge"
 ```
 
-This creates Django's internal tables (auth, sessions, etc.).
+### Database Tables (11 Tables)
+
+| Table | Description |
+|-------|-------------|
+| `employees` | Team members |
+| `git_commits` | Git commit metadata |
+| `git_commit_files` | Files changed per commit |
+| `jira_tickets` | Jira issues |
+| `confluence_pages` | Documentation pages |
+| `meetings` | Meeting transcripts (VTT) |
+| `entity_references` | Cross-links between entities |
+| `projects` | Project groupings |
+| `project_entities` | Links entities to projects |
+| `sprints` | Sprint information |
+| `sprint_tickets` | Links sprints to tickets |
+
+### Reset Database (If Needed)
+
+```sql
+-- Drop all tables
+DROP VIEW IF EXISTS unified_timeline CASCADE;
+DROP TABLE IF EXISTS sprint_tickets CASCADE;
+DROP TABLE IF EXISTS sprints CASCADE;
+DROP TABLE IF EXISTS project_entities CASCADE;
+DROP TABLE IF EXISTS projects CASCADE;
+DROP TABLE IF EXISTS entity_references CASCADE;
+DROP TABLE IF EXISTS git_commit_files CASCADE;
+DROP TABLE IF EXISTS git_commits CASCADE;
+DROP TABLE IF EXISTS meetings CASCADE;
+DROP TABLE IF EXISTS jira_tickets CASCADE;
+DROP TABLE IF EXISTS confluence_pages CASCADE;
+DROP TABLE IF EXISTS employees CASCADE;
+
+-- Recreate by running 000_complete_schema.sql
+```
 
 ---
 
@@ -180,265 +230,231 @@ python manage.py runserver
 
 Server runs at: http://127.0.0.1:8000/
 
-### Start on Different Port
+### Access Admin Panel
+
+http://127.0.0.1:8000/admin/
+
+### Create Superuser (First Time)
 
 ```bash
-python manage.py runserver 8080
+python manage.py createsuperuser
 ```
 
-### Run in Background (optional)
+---
+
+## Data Ingestion
+
+The `ingest_data` command imports data from local files (CSV, JSON, VTT, MD).
+
+### Available Options
+
+| Option | File Type | Description |
+|--------|-----------|-------------|
+| `--employees` | CSV | Import employee data |
+| `--projects` | CSV | Import project data |
+| `--jira` | CSV | Import Jira tickets |
+| `--sprints` | CSV | Import sprint data |
+| `--sprint-tickets` | CSV | Import sprint-ticket links |
+| `--commits` | JSON | Import git commits |
+| `--meetings` | VTT | Import meeting transcript |
+| `--confluence` | MD | Import Confluence page |
+
+### Ingestion Order (Important!)
+
+Run in this order due to foreign key dependencies:
 
 ```bash
-python manage.py runserver &
+cd ~/Desktop/Onboarding_AI/database
+source ../venv/bin/activate
+
+# 1. Employees (no dependencies)
+python manage.py ingest_data --employees /path/to/employees.csv
+
+# 2. Projects (no dependencies)
+python manage.py ingest_data --projects /path/to/projects.csv
+
+# 3. Jira tickets (no dependencies)
+python manage.py ingest_data --jira /path/to/jira_tickets.csv
+
+# 4. Sprints (requires projects)
+python manage.py ingest_data --sprints /path/to/sprints.csv
+
+# 5. Sprint-tickets (requires sprints + tickets)
+python manage.py ingest_data --sprint-tickets /path/to/sprint_tickets.csv
+
+# 6. Git commits (no dependencies)
+python manage.py ingest_data --commits /path/to/git_commits.json
+
+# 7. Meetings (run for each VTT file)
+python manage.py ingest_data --meetings /path/to/meeting1.vtt
+python manage.py ingest_data --meetings /path/to/meeting2.vtt
+
+# 8. Confluence pages (run for each MD file)
+python manage.py ingest_data --confluence /path/to/page1.md
+python manage.py ingest_data --confluence /path/to/page2.md
+```
+
+### Example: Ingest All Synthetic Data
+
+```bash
+# Set base path
+DATA_PATH=/path/to/synthetic_data
+
+# Ingest in order
+python manage.py ingest_data --employees $DATA_PATH/employees.csv
+python manage.py ingest_data --projects $DATA_PATH/projects.csv
+python manage.py ingest_data --jira $DATA_PATH/jira_tickets.csv
+python manage.py ingest_data --sprints $DATA_PATH/sprints.csv
+python manage.py ingest_data --sprint-tickets $DATA_PATH/sprint_tickets.csv
+python manage.py ingest_data --commits $DATA_PATH/git_commits.json
+
+# Meetings
+for f in $DATA_PATH/vtt/*.vtt; do
+    python manage.py ingest_data --meetings "$f"
+done
+
+# Confluence pages
+for f in $DATA_PATH/confluence/*.md; do
+    python manage.py ingest_data --confluence "$f"
+done
+```
+
+### File Formats
+
+#### employees.csv
+```csv
+name,email,role,department,source,github_username,is_active
+Sarah Chen,sarah.chen@company.com,Tech Lead,Engineering,csv,sarahchen,true
+```
+
+#### projects.csv
+```csv
+name,description,status,epic_key,jira_project_key,github_repo,confluence_space_key,start_date,target_end_date,owner,team_members,tags
+My Project,Description here,active,ONBOARD-10,ONBOARD,org/repo,Space Key,2026-01-06,2026-02-14,Sarah Chen,"[""Member1""]","[""tag1""]"
+```
+
+#### sprints.csv
+```csv
+sprint_number,name,start_date,end_date,goal,project_name,status
+1,Sprint 1 - Foundation,2026-01-06,2026-01-17,Build foundation,Employee Onboarding Portal,completed
+```
+
+#### sprint_tickets.csv
+```csv
+sprint_number,ticket_key,added_date
+1,ONBOARD-11,2026-01-06
+```
+
+#### jira_tickets.csv
+```csv
+Issue Key,Issue Type,Summary,Description,Status,Priority,Assignee,Reporter,Created,Updated,Resolved,Labels,Epic Link,Sprint,Story Points,Comments
+ONBOARD-11,Task,Initialize project,Setup Django,Done,High,Marcus,Sarah,2026-01-06,2026-01-06,2026-01-06,backend,ONBOARD-10,Sprint 1,2,"[comment text]"
+```
+
+#### git_commits.json
+```json
+[
+  {
+    "sha": "abc123...",
+    "commit": {
+      "author": {
+        "name": "Marcus Thompson",
+        "email": "marcus@company.com",
+        "date": "2026-01-06T09:30:00Z"
+      },
+      "message": "feat: add feature\n\nRelated: ONBOARD-11"
+    },
+    "files": [
+      {"filename": "file.py", "additions": 50, "deletions": 10, "status": "modified"}
+    ]
+  }
+]
+```
+
+#### meetings (VTT format)
+```
+WEBVTT
+
+NOTE
+Meeting: Sprint Planning
+Date: 2026-01-06
+Participants: Sarah Chen (Tech Lead), Marcus Thompson (Dev)
+
+00:00:05.000 --> 00:00:12.000
+Sarah Chen: Welcome everyone to sprint planning.
+```
+
+#### confluence pages (Markdown with frontmatter)
+```markdown
+title: "Page Title"
+space: "Onboarding Portal"
+author: "Sarah Chen"
+created: "2026-01-06"
+last_updated: "2026-01-20"
+labels: ["guide", "setup"]
+version: 3
+
+# Page Title
+
+Content here...
 ```
 
 ---
 
 ## Data Extraction Scripts
 
-### Overview
+Extract data directly from APIs (GitHub, Jira, Confluence).
 
-| Script | Source | What It Extracts |
-|--------|--------|------------------|
-| `extract_github.py` | GitHub API | Commits + files changed |
-| `extract_confluence.py` | Confluence API | Pages + content (as Markdown) |
-| `extract_jira.py` | Jira API | Tickets + comments |
+| Script | Source | Command |
+|--------|--------|---------|
+| `extract_github.py` | GitHub API | `python scripts/extract_github.py` |
+| `extract_confluence.py` | Confluence API | `python scripts/extract_confluence.py` |
+| `extract_jira.py` | Jira API | `python scripts/extract_jira.py` |
 
-All scripts automatically create `entity_references` to link data.
-
----
-
-### Running GitHub Extraction
-
-**Extracts:** Commits and files changed from a repository.
+### Run All Extractions
 
 ```bash
-# Activate environment first
-source ../venv/bin/activate
-
-# Run extraction
 python scripts/extract_github.py
-```
-
-**Environment variables used:**
-```bash
-GITHUB_TOKEN=ghp_xxxxxxxxxxxx
-GITHUB_OWNER=nkousik18          # Repository owner
-GITHUB_REPO=LoanQA-MLOps        # Repository name
-GITHUB_MAX_COMMITS=100          # Max commits to fetch
-```
-
-**What happens:**
-1. Fetches commit list from GitHub API
-2. For each commit, fetches file changes
-3. Saves to `git_commits` and `git_commit_files` tables
-4. Scans commit messages for ticket references (e.g., `ONBOARD-5`)
-5. Creates `entity_references` links
-
-**Output:**
-```
-============================================================
-Extracting commits from nkousik18/LoanQA-MLOps
-============================================================
-
-Fetching commits page 1...
-  Found 25 commits
-
-[1/25] Processing a1b2c3d...
-  ✓ Created: Initial commit
-[2/25] Processing d4e5f6g...
-  ✓ Created: Add authentication module
-
-============================================================
-Extraction Complete!
-============================================================
-  Created: 25
-  Updated: 0
-  Errors:  0
-  Total:   25
-```
-
----
-
-### Running Confluence Extraction
-
-**Extracts:** Pages from a Confluence space (converted to Markdown).
-
-```bash
 python scripts/extract_confluence.py
-```
-
-**Environment variables used:**
-```bash
-CONFLUENCE_DOMAIN=onboardingaii.atlassian.net
-CONFLUENCE_EMAIL=your-email@gmail.com
-CONFLUENCE_API_TOKEN=your-token
-CONFLUENCE_SPACE_KEY=ONBOARD
-CONFLUENCE_SPACE_ID=1474564
-```
-
-**What happens:**
-1. Fetches page list from Confluence API
-2. For each page, fetches full content
-3. Converts HTML/XML to readable Markdown
-4. Saves to `confluence_pages` table
-5. Scans content for ticket references
-6. Creates `entity_references` links
-
-**Output:**
-```
-============================================================
-Extracting pages from space: ONBOARD (ID: 1474564)
-============================================================
-
-Fetching pages...
-  Found 8 pages
-
-Total pages to process: 8
-
-[1/8] Processing: Onboarding AI
-  ✓ Created: Onboarding AI
-[2/8] Processing: Database Schema
-  ✓ Created: Database Schema
-[3/8] Processing: Template - How-to guide
-  ⊘ Skipping template page
-
-============================================================
-Extraction Complete!
-============================================================
-  Created: 6
-  Updated: 0
-  Errors:  0
-  Total:   8
-```
-
----
-
-### Running Jira Extraction
-
-**Extracts:** Tickets from a Jira project.
-
-```bash
 python scripts/extract_jira.py
 ```
 
-**Environment variables used:**
-```bash
-JIRA_DOMAIN=onboardingaii.atlassian.net
-JIRA_EMAIL=your-email@gmail.com
-JIRA_API_TOKEN=your-token
-JIRA_PROJECT_KEY=ONBOARD
-JIRA_MAX_ISSUES=500
-```
-
-**What happens:**
-1. Searches for issues using JQL: `project = ONBOARD`
-2. For each issue, fetches comments
-3. Saves to `jira_tickets` table
-4. Creates `entity_references` for epic links
-
-**Output:**
-```
-============================================================
-Extracting issues from project: ONBOARD
-============================================================
-
-Fetching issues...
-  Found 10 issues (total: 10)
-
-Total issues to process: 10
-
-[1/10] Processing: ONBOARD-1 - Data Extraction Pipeline...
-  ✓ Created
-[2/10] Processing: ONBOARD-2 - Implement GitHub extraction...
-  ✓ Created
-
-============================================================
-Extraction Complete!
-============================================================
-  Created: 10
-  Updated: 0
-  Errors:  0
-  Total:   10
-```
-
----
-
-### Running All Extractions
-
-Create a simple script to run all:
-
-```bash
-#!/bin/bash
-# run_all_extractions.sh
-
-echo "Starting data extraction..."
-
-echo "\n>>> Extracting GitHub commits..."
-python scripts/extract_github.py
-
-echo "\n>>> Extracting Confluence pages..."
-python scripts/extract_confluence.py
-
-echo "\n>>> Extracting Jira tickets..."
-python scripts/extract_jira.py
-
-echo "\n>>> All extractions complete!"
-```
-
-Run it:
-```bash
-chmod +x run_all_extractions.sh
-./run_all_extractions.sh
-```
-
----
-
-### Re-running Extractions
-
-**Safe to re-run!** Scripts use `update_or_create`:
-- New records → Created
-- Existing records → Updated
-- No duplicates created
+Scripts automatically:
+- Create/update records (no duplicates)
+- Extract ticket references from content
+- Create `entity_references` links
 
 ---
 
 ## Working with the Database
 
-### Connect to PostgreSQL
-
-```bash
-/Library/PostgreSQL/18/bin/psql -U postgres -d project_knowledge
-```
-
-### Useful SQL Commands
+### Useful SQL Queries
 
 ```sql
--- List all tables
-\dt
+-- Count all records
+SELECT 'employees' as tbl, COUNT(*) FROM employees
+UNION ALL SELECT 'commits', COUNT(*) FROM git_commits
+UNION ALL SELECT 'tickets', COUNT(*) FROM jira_tickets
+UNION ALL SELECT 'pages', COUNT(*) FROM confluence_pages
+UNION ALL SELECT 'meetings', COUNT(*) FROM meetings
+UNION ALL SELECT 'sprints', COUNT(*) FROM sprints
+UNION ALL SELECT 'references', COUNT(*) FROM entity_references;
 
--- Describe a table
-\d git_commits
+-- View sprint with tickets
+SELECT s.name, s.start_date, s.end_date, j.issue_key, j.summary
+FROM sprints s
+JOIN sprint_tickets st ON s.id = st.sprint_id
+JOIN jira_tickets j ON st.ticket_id = j.id
+ORDER BY s.sprint_number, j.issue_key;
 
--- Count records
-SELECT COUNT(*) FROM git_commits;
-SELECT COUNT(*) FROM jira_tickets;
-SELECT COUNT(*) FROM confluence_pages;
-SELECT COUNT(*) FROM entity_references;
+-- Find everything related to a ticket
+SELECT source_type, reference_id, extraction_method
+FROM entity_references
+WHERE reference_id = 'ONBOARD-11';
 
--- View recent commits
-SELECT sha, author_name, commit_date, LEFT(message, 50) 
-FROM git_commits 
-ORDER BY commit_date DESC 
-LIMIT 10;
-
--- Find all references to a ticket
-SELECT * FROM entity_references 
-WHERE reference_id = 'ONBOARD-5';
-
--- View timeline
-SELECT * FROM unified_timeline 
-ORDER BY event_date DESC 
+-- View project timeline
+SELECT * FROM unified_timeline
+ORDER BY event_date DESC
 LIMIT 20;
 ```
 
@@ -452,64 +468,46 @@ python manage.py shell
 from knowledge_base.models import *
 
 # Count records
-GitCommit.objects.count()
-JiraTicket.objects.count()
-ConfluencePage.objects.count()
+print(f"Employees: {Employee.objects.count()}")
+print(f"Commits: {GitCommit.objects.count()}")
+print(f"Tickets: {JiraTicket.objects.count()}")
+print(f"Sprints: {Sprint.objects.count()}")
 
-# Get all commits
-commits = GitCommit.objects.all()
+# Get sprint with tickets
+sprint = Sprint.objects.get(sprint_number=1)
+for st in sprint.sprint_tickets.all():
+    print(f"  {st.ticket.issue_key}: {st.ticket.summary}")
 
-# Filter tickets by status
-open_tickets = JiraTicket.objects.filter(status='To Do')
-
-# Find commits referencing a ticket
+# Find commits for a ticket
 refs = EntityReference.objects.filter(
     reference_type='jira_ticket',
-    reference_id='ONBOARD-5',
+    reference_id='ONBOARD-11',
     source_type='commit'
 )
-commit_ids = refs.values_list('source_id', flat=True)
-commits = GitCommit.objects.filter(id__in=commit_ids)
-
-# Get files for a commit
-commit = GitCommit.objects.first()
-files = commit.files.all()
-for f in files:
-    print(f"{f.filename}: +{f.additions} -{f.deletions}")
+for ref in refs:
+    commit = GitCommit.objects.get(id=ref.source_id)
+    print(f"{commit.sha[:7]}: {commit.message[:50]}")
 ```
 
 ---
 
 ## Django Admin
 
-### Access Admin Panel
+### Available Models in Admin
 
-1. Start server: `python manage.py runserver`
-2. Go to: http://127.0.0.1:8000/admin/
-3. Login with superuser credentials
-
-### Create Superuser (if needed)
-
-```bash
-python manage.py createsuperuser
-```
-
-### Available in Admin
-
-- **Git Commits** - View/search commits
-- **Git Commit Files** - View files changed
-- **Meetings** - View meeting transcripts
-- **Jira Tickets** - View/filter tickets
-- **Confluence Pages** - View documentation
-- **Entity References** - View cross-references
-- **Projects** - Manage project groupings
-- **Project Entities** - View entity links
-
-### Reset Admin Password
-
-```bash
-python manage.py changepassword your_username
-```
+| Model | Description |
+|-------|-------------|
+| **Employees** | View/edit team members |
+| **Git Commits** | View commits with search |
+| **Git Commit Files** | Files changed per commit |
+| **Jira Tickets** | Filter by status, assignee |
+| **Confluence Pages** | View documentation |
+| **Meetings** | Meeting transcripts |
+| **Entity References** | Cross-links |
+| **Projects** | Project groupings |
+| **Project Entities** | Entity links |
+| **Sprints** | Sprint data |
+| **Sprint Tickets** | Sprint-ticket links |
 
 ---
 
@@ -522,84 +520,52 @@ python manage.py changepassword your_username
 | GitHub PAT | https://github.com/settings/tokens |
 | Atlassian API Token | https://id.atlassian.com/manage-profile/security/api-tokens |
 
-### GitHub Token Scopes Needed
+### Test API Connections
 
-- `repo` - Full control of private repositories
-- `read:org` - Read organization info (if using org repos)
-
-### Atlassian Token
-
-Same token works for both Jira and Confluence.
-
-### Testing API Connections
-
-**GitHub:**
 ```bash
-curl -H "Authorization: token YOUR_TOKEN" \
-  https://api.github.com/user
-```
+# GitHub
+curl -H "Authorization: token YOUR_TOKEN" https://api.github.com/user
 
-**Jira:**
-```bash
-curl -u your-email:YOUR_TOKEN \
-  "https://onboardingaii.atlassian.net/rest/api/3/myself"
-```
+# Jira
+curl -u your-email:YOUR_TOKEN "https://your-domain.atlassian.net/rest/api/3/myself"
 
-**Confluence:**
-```bash
-curl -u your-email:YOUR_TOKEN \
-  "https://onboardingaii.atlassian.net/wiki/api/v2/spaces"
+# Confluence
+curl -u your-email:YOUR_TOKEN "https://your-domain.atlassian.net/wiki/api/v2/spaces"
 ```
 
 ---
 
 ## Common Tasks
 
-### Add a New Data Source
+### Add New Employee
 
-1. Create extraction script in `scripts/`
-2. Follow the pattern of existing scripts:
-   - Load environment variables
-   - Set up Django
-   - Define API functions
-   - Save to database
-   - Extract entity references
+```bash
+python manage.py ingest_data --employees /path/to/new_employee.csv
+```
 
-### Modify Database Schema
-
-1. Add SQL to a new migration file in `sql/`
-2. Run SQL manually in PostgreSQL
-3. Update Django model in `knowledge_base/models.py`
-4. Update admin in `knowledge_base/admin.py`
-
-### Add New Entity Reference Pattern
-
-Edit the `extract_jira_references()` function in scripts:
-
+Or via Django shell:
 ```python
-def extract_jira_references(text):
-    if not text:
-        return []
-    # Add more patterns here
-    pattern = r'[A-Z]+-\d+'  # Matches ONBOARD-5, PROJ-123, etc.
-    matches = re.findall(pattern, text)
-    return list(set(matches))
+from knowledge_base.models import Employee
+Employee.objects.create(
+    name="James O'Brien",
+    email="james@company.com",
+    role="Junior Developer",
+    department="Engineering",
+    is_active=True
+)
+```
+
+### Add New Sprint
+
+```bash
+python manage.py ingest_data --sprints /path/to/new_sprint.csv
+python manage.py ingest_data --sprint-tickets /path/to/sprint_tickets.csv
 ```
 
 ### Export Data
 
 ```bash
-# Export to JSON
 python manage.py dumpdata knowledge_base --indent 2 > data_export.json
-
-# Export specific model
-python manage.py dumpdata knowledge_base.gitcommit --indent 2 > commits.json
-```
-
-### Import Data
-
-```bash
-python manage.py loaddata data_export.json
 ```
 
 ---
@@ -609,55 +575,27 @@ python manage.py loaddata data_export.json
 ### "Module not found" errors
 
 ```bash
-# Make sure venv is activated
 source ../venv/bin/activate
-
-# Reinstall dependencies
 pip install -r requirements.txt
 ```
 
 ### "Connection refused" to database
 
-```bash
-# Check if PostgreSQL is running
-# On Mac, check Applications > PostgreSQL 18
+Check your `.env` has the correct Render database URL.
 
-# Test connection
-/Library/PostgreSQL/18/bin/psql -U postgres -d project_knowledge
-```
+### "Sprint not found" when ingesting sprint-tickets
 
-### "Authentication failed" for APIs
+Make sure you ingest sprints BEFORE sprint-tickets.
 
-1. Check token hasn't expired
-2. Verify email address is correct
-3. Regenerate token if needed
+### "Project not found" when ingesting sprints
 
-### "No module named 'knowledge_base'"
-
-Make sure you're in the right directory:
-```bash
-cd ~/Desktop/Onboarding_AI/database
-```
+Make sure you ingest projects BEFORE sprints.
 
 ### Scripts run but no data appears
 
 1. Check `.env` file has correct values
-2. Check API tokens are valid
-3. Check project keys match (ONBOARD vs PAY, etc.)
-4. Look for error messages in script output
-
-### Clear all data and start fresh
-
-```sql
--- Connect to PostgreSQL
-TRUNCATE git_commits CASCADE;
-TRUNCATE jira_tickets CASCADE;
-TRUNCATE confluence_pages CASCADE;
-TRUNCATE meetings CASCADE;
-TRUNCATE entity_references CASCADE;
-TRUNCATE projects CASCADE;
-TRUNCATE project_entities CASCADE;
-```
+2. Check for error messages in output
+3. Verify database connection
 
 ---
 
@@ -667,22 +605,27 @@ TRUNCATE project_entities CASCADE;
 |------|---------|
 | Activate venv | `source ../venv/bin/activate` |
 | Start server | `python manage.py runserver` |
-| Run GitHub extraction | `python scripts/extract_github.py` |
-| Run Confluence extraction | `python scripts/extract_confluence.py` |
-| Run Jira extraction | `python scripts/extract_jira.py` |
 | Django shell | `python manage.py shell` |
 | Check setup | `python manage.py check` |
 | Create superuser | `python manage.py createsuperuser` |
-| Connect to DB | `/Library/PostgreSQL/18/bin/psql -U postgres -d project_knowledge` |
+| Ingest employees | `python manage.py ingest_data --employees FILE` |
+| Ingest projects | `python manage.py ingest_data --projects FILE` |
+| Ingest jira | `python manage.py ingest_data --jira FILE` |
+| Ingest sprints | `python manage.py ingest_data --sprints FILE` |
+| Ingest sprint-tickets | `python manage.py ingest_data --sprint-tickets FILE` |
+| Ingest commits | `python manage.py ingest_data --commits FILE` |
+| Ingest meeting | `python manage.py ingest_data --meetings FILE` |
+| Ingest confluence | `python manage.py ingest_data --confluence FILE` |
+| Connect to DB | `psql "postgresql://..."` |
 
 ---
 
 ## Need Help?
 
 1. Check `DATABASE.md` for schema details
-2. Check `docs/DATA_SOURCE_SETUP_GUIDE.md` for API setup
-3. Check Django logs in terminal for errors
-4. Use Django shell to debug queries
+2. Check `DB_CONNECTION_GUIDE.md` for connection info
+3. Check `EMPLOYEES_TABLE.md` for employee queries
+4. Check Django logs in terminal for errors
 
 ---
 

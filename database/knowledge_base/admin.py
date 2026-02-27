@@ -11,7 +11,9 @@ from .models import (
     ConfluencePage,
     EntityReference,
     Project,
-    ProjectEntity
+    ProjectEntity,
+    Employee,  # Add this
+    Decision
 )
 
 
@@ -73,3 +75,42 @@ class ProjectAdmin(admin.ModelAdmin):
 class ProjectEntityAdmin(admin.ModelAdmin):
     list_display = ['project', 'entity_type', 'entity_id', 'added_manually']
     list_filter = ['entity_type', 'added_manually']
+
+from .models import Employee  # Add to imports
+
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ['name', 'email', 'role', 'department', 'source', 'is_active']
+    list_filter = ['department', 'source', 'is_active']
+    search_fields = ['name', 'email']
+
+# ==========================================
+# ADD THESE TO YOUR admin.py FILE
+# ==========================================
+
+from .models import Sprint, SprintTicket  # Add to imports
+
+
+@admin.register(Sprint)
+class SprintAdmin(admin.ModelAdmin):
+    list_display = ['sprint_number', 'name', 'project', 'start_date', 'end_date', 'status']
+    list_filter = ['status', 'project']
+    search_fields = ['name', 'goal']
+    ordering = ['-sprint_number']
+
+
+@admin.register(SprintTicket)
+class SprintTicketAdmin(admin.ModelAdmin):
+    list_display = ['sprint', 'ticket', 'added_date']
+    list_filter = ['sprint']
+    search_fields = ['ticket__issue_key', 'sprint__name']
+
+from django.contrib import admin
+from .models import Decision
+
+@admin.register(Decision)
+class DecisionAdmin(admin.ModelAdmin):
+    list_display = ['decision_date', 'title', 'category', 'source_type', 'status']
+    list_filter = ['status', 'category', 'source_type', 'decision_date']
+    search_fields = ['title', 'description', 'rationale']
+    ordering = ['-decision_date']

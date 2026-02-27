@@ -287,4 +287,24 @@ postgresql://onboarding_user:T9hSACQXUiLLlJfNcxM1hBEwwRWYAnvQ@dpg-d6evhe8gjchc73
 
 ---
 
+## Why It's Better (50 words)
+
+The new structure enables **project-level tracking** with sprints linking tickets to timelines, making it easy to see what work happened when. The **employees table** connects people to their commits, tickets, and meetings. **Sprint-ticket relationships** allow tracking velocity and progress across sprints—essential for onboarding context.
+
+---
+
+## Changes Made
+
+| Added | Purpose |
+|-------|---------|
+| `employees` table | Track team members across all data sources |
+| `projects` table | Group related work under one project |
+| `sprints` table | Track sprint timelines and goals |
+| `sprint_tickets` table | Link tickets to sprints |
+
+| Updated | Change |
+|---------|--------|
+| `ingest_data.py` | Added 4 new options: `--employees`, `--projects`, `--sprints`, `--sprint-tickets` |
+| Entity references pattern | Now matches `[A-Z]+-\d+` (any project key, not just PAY-) |
 *Last updated: February 2026*
+
