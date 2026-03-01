@@ -283,3 +283,213 @@ class ProjectEntity(models.Model):
     
     def __str__(self):
         return f"{self.project.name} - {self.entity_type}"
+    
+class Employee(models.Model):
+    """Stores team member information"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    email = models.EmailField(max_length=255, blank=True, null=True)
+    role = models.CharField(max_length=100, blank=True, null=True)
+    department = models.CharField(max_length=100, blank=True, null=True)
+    source = models.CharField(max_length=50, blank=True, null=True)
+    jira_account_id = models.CharField(max_length=255, blank=True, null=True)
+    github_username = models.CharField(max_length=255, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'employees'
+        managed = False
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+    
+# ==========================================
+# ADD THESE MODELS TO YOUR models.py FILE
+# ==========================================
+
+class Sprint(models.Model):
+    """Stores sprint information"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sprint_number = models.IntegerField()
+    name = models.CharField(max_length=255)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    goal = models.TextField(blank=True, null=True)
+    project = models.ForeignKey(
+        'Project', 
+        on_delete=models.CASCADE, 
+        related_name='sprints',
+        blank=True, 
+        null=True
+    )
+    status = models.CharField(max_length=50, default='planned')  # planned, active, completed
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'sprints'
+        managed = False
+        ordering = ['sprint_number']
+        unique_together = ['sprint_number', 'project']
+    
+    def __str__(self):
+        return f"{self.name} (Sprint {self.sprint_number})"
+
+
+class SprintTicket(models.Model):
+    """Links sprints to jira tickets"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sprint = models.ForeignKey(
+        Sprint, 
+        on_delete=models.CASCADE, 
+        related_name='sprint_tickets'
+    )
+    ticket = models.ForeignKey(
+        'JiraTicket', 
+        on_delete=models.CASCADE, 
+        related_name='sprint_assignments'
+    )
+    added_date = models.DateField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'sprint_tickets'
+        managed = False
+        unique_together = ['sprint', 'ticket']
+    
+    def __str__(self):
+        return f"{self.sprint.name} - {self.ticket.issue_key}"
+
+# ============================================
+# ADD THIS MODEL TO knowledge_base/models.py
+# ============================================
+
+class Decision(models.Model):
+    """
+    Stores decisions extracted from meetings, confluence, jira, and commits.
+    This is the unified decision timeline.
+    """
+    
+    # Status choices
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('superseded', 'Superseded'),
+        ('reversed', 'Reversed'),
+        ('proposed', 'Proposed'),
+        ('duplicate', 'Duplicate'),
+    ]
+    
+    # Category choices
+    CATEGORY_CHOICES = [
+        ('architecture', 'Architecture'),
+        ('technology', 'Technology'),
+        ('process', 'Process'),
+        ('design', 'Design'),
+        ('infrastructure', 'Infrastructure'),
+        ('security', 'Security'),
+        ('other', 'Other'),
+    ]
+    
+    # Source type choices
+    SOURCE_TYPE_CHOICES = [
+        ('meeting', 'Meeting'),
+        ('confluence', 'Confluence'),
+        ('jira', 'Jira'),
+        ('git_commit', 'Git Commit'),
+    ]
+    
+    # Primary key
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Core decision info
+    title = models.CharField(max_length=500)
+    description = models.TextField(blank=True, null=True)
+    decision_date = models.DateField()
+    
+    # Context and reasoning (THE "WHY")
+    rationale = models.TextField(blank=True, null=True)
+    alternatives_considered = models.TextField(blank=True, null=True)
+    impact = models.TextField(blank=True, null=True)
+    
+    # People
+    decided_by = ArrayField(
+        models.CharField(max_length=255),
+        blank=True,
+        null=True
+    )
+    
+    # Source tracking
+    source_type = models.CharField(max_length=50, choices=SOURCE_TYPE_CHOICES)
+    source_id = models.UUIDField(blank=True, null=True)
+    source_title = models.CharField(max_length=500, blank=True, null=True)
+    
+    # Relationships
+    related_tickets = ArrayField(
+        models.CharField(max_length=50),
+        blank=True,
+        null=True
+    )
+    related_decisions = ArrayField(
+        models.UUIDField(),
+        blank=True,
+        null=True
+    )
+    
+    # Categorization
+    category = models.CharField(
+        max_length=100, 
+        choices=CATEGORY_CHOICES,
+        blank=True, 
+        null=True
+    )
+    tags = ArrayField(
+        models.CharField(max_length=100),
+        blank=True,
+        null=True
+    )
+    
+    # Lifecycle
+    status = models.CharField(
+        max_length=50, 
+        choices=STATUS_CHOICES,
+        default='active'
+    )
+    superseded_by = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='supersedes_decisions',
+        db_column='superseded_by'
+    )
+    supersedes = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='superseded_by_decisions',
+        db_column='supersedes'
+    )
+    
+    # Metadata
+    confidence_score = models.FloatField(blank=True, null=True)
+    extraction_notes = models.TextField(blank=True, null=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'decisions'
+        managed = False  # Table created via SQL
+        ordering = ['-decision_date']
+    
+    def __str__(self):
+        return f"{self.decision_date}: {self.title[:50]}"
+

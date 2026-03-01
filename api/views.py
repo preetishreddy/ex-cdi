@@ -8,6 +8,7 @@ from rest_framework import serializers as drf_serializers
 from knowledge_base.models import (
     GitCommit, JiraTicket, ConfluencePage,
     Meeting, Project, EntityReference,
+    Employee, Sprint, SprintTicket, Decision,
 )
 from .serializers import (
     GitCommitSerializer,
@@ -18,6 +19,11 @@ from .serializers import (
     MeetingDetailSerializer,
     ProjectSerializer,
     EntityReferenceSerializer,
+    EmployeeSerializer,
+    SprintSerializer,
+    SprintTicketSerializer,
+    DecisionSerializer,
+    SprintOutcomeSerializer,
 )
 from .ingestion import (
     run_github_ingest,
@@ -207,12 +213,27 @@ class PageDetailView(generics.RetrieveAPIView):
     get=extend_schema(
         tags=['Meetings'],
         summary='List all meetings',
-        description='Returns metadata for every meeting transcript in the knowledge base.',
+        description=(
+            'Returns meetings with full transcript. '
+            'Optionally filter by exact date using `?date=YYYY-MM-DD`.'
+        ),
+        parameters=[
+            OpenApiParameter(
+                name='date', type=str, location=OpenApiParameter.QUERY,
+                required=False, description='Filter by meeting date (YYYY-MM-DD).',
+            ),
+        ],
     ),
 )
 class MeetingListView(generics.ListAPIView):
-    serializer_class = MeetingListSerializer
-    queryset = Meeting.objects.all()
+    serializer_class = MeetingDetailSerializer
+
+    def get_queryset(self):
+        qs = Meeting.objects.all()
+        date = self.request.query_params.get('date')
+        if date:
+            qs = qs.filter(meeting_date__date=date)
+        return qs
 
 
 @extend_schema_view(
@@ -391,14 +412,157 @@ class IngestMeetingView(APIView):
             return Response({'error': str(e)}, status=500)
 
 
+# ── Sprint Outcomes ───────────────────────────────────────────────────────────
+
+class SprintTicketsOutcomeView(views.APIView):
+    """GET /api/sprints/<sprint_number>/tickets/ — tickets in a sprint with completion status."""
+
+    @extend_schema(
+        tags=['Sprints'],
+        summary='Get sprint ticket outcomes',
+        description=(
+            'Returns all Jira tickets in a sprint with completion status. '
+            'Each ticket includes `is_completed`, `teammates`, and `teammates_count`. '
+            'Also returns summary counts: total, completed, pending.'
+        ),
+        responses={
+            200: SprintOutcomeSerializer,
+            404: _ErrorSerializer,
+        },
+    )
+    def get(self, request, sprint_number):
+        sprint = generics.get_object_or_404(Sprint, sprint_number=sprint_number)
+        return Response(SprintOutcomeSerializer(sprint).data)
+
+
+class SprintMeetingsView(views.APIView):
+    """GET /api/sprints/<sprint_number>/meetings/ — meetings that happened during a sprint."""
+
+    @extend_schema(
+        tags=['Sprints'],
+        summary='Get meetings during a sprint',
+        description=(
+            'Returns all meeting transcripts where the meeting date falls within '
+            'the sprint\'s start and end dates.'
+        ),
+        responses={
+            200: MeetingDetailSerializer(many=True),
+            404: _ErrorSerializer,
+        },
+    )
+    def get(self, request, sprint_number):
+        sprint = generics.get_object_or_404(Sprint, sprint_number=sprint_number)
+        meetings = Meeting.objects.filter(
+            meeting_date__date__gte=sprint.start_date,
+            meeting_date__date__lte=sprint.end_date,
+        )
+        return Response(MeetingDetailSerializer(meetings, many=True).data)
+
+
+# ── Employees ────────────────────────────────────────────────────────────────
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=['Employees'],
+        summary='List all employees',
+        description='Returns all team members stored in the knowledge base.',
+    ),
+)
+class EmployeeListView(generics.ListAPIView):
+    serializer_class = EmployeeSerializer
+    queryset = Employee.objects.all()
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=['Employees'],
+        summary='Get employee by ID',
+        description='Retrieve a single employee record by UUID.',
+    ),
+)
+class EmployeeDetailView(generics.RetrieveAPIView):
+    serializer_class = EmployeeSerializer
+    queryset = Employee.objects.all()
+
+
+# ── Sprints ───────────────────────────────────────────────────────────────────
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=['Sprints'],
+        summary='List all sprints',
+        description='Returns all sprints with their linked tickets.',
+    ),
+)
+class SprintListView(generics.ListAPIView):
+    serializer_class = SprintSerializer
+    queryset = Sprint.objects.prefetch_related('sprint_tickets').all()
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=['Sprints'],
+        summary='Get sprint by ID',
+        description='Retrieve a single sprint with all its tickets.',
+    ),
+)
+class SprintDetailView(generics.RetrieveAPIView):
+    serializer_class = SprintSerializer
+    queryset = Sprint.objects.prefetch_related('sprint_tickets').all()
+
+
+# ── Decisions ─────────────────────────────────────────────────────────────────
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=['Decisions'],
+        summary='List all decisions',
+        description='Returns the unified decision timeline across meetings, Confluence, Jira, and commits.',
+        parameters=[
+            OpenApiParameter(name='category', type=str, location=OpenApiParameter.QUERY,
+                             required=False, description='Filter by category (e.g. architecture, technology).'),
+            OpenApiParameter(name='source_type', type=str, location=OpenApiParameter.QUERY,
+                             required=False, description='Filter by source (meeting, confluence, jira, git_commit).'),
+        ],
+    ),
+)
+class DecisionListView(generics.ListAPIView):
+    serializer_class = DecisionSerializer
+
+    def get_queryset(self):
+        qs = Decision.objects.all()
+        category = self.request.query_params.get('category')
+        source_type = self.request.query_params.get('source_type')
+        if category:
+            qs = qs.filter(category=category)
+        if source_type:
+            qs = qs.filter(source_type=source_type)
+        return qs
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=['Decisions'],
+        summary='Get decision by ID',
+        description='Retrieve a single decision record by UUID.',
+    ),
+)
+class DecisionDetailView(generics.RetrieveAPIView):
+    serializer_class = DecisionSerializer
+    queryset = Decision.objects.all()
+
+
 # ── Delete ────────────────────────────────────────────────────────────────────
 
 ENTITY_MAP = {
-    'commits':  (GitCommit,      'sha'),
-    'tickets':  (JiraTicket,     'issue_key'),
-    'pages':    (ConfluencePage, 'pk'),
-    'meetings': (Meeting,        'pk'),
-    'projects': (Project,        'pk'),
+    'commits':   (GitCommit,      'sha'),
+    'tickets':   (JiraTicket,     'issue_key'),
+    'pages':     (ConfluencePage, 'pk'),
+    'meetings':  (Meeting,        'pk'),
+    'projects':  (Project,        'pk'),
+    'employees': (Employee,       'pk'),
+    'sprints':   (Sprint,         'pk'),
+    'decisions': (Decision,       'pk'),
 }
 
 class DeleteView(APIView):

@@ -30,6 +30,17 @@ urlpatterns = [
     path(
         "projects/<uuid:pk>/", views.ProjectDetailView.as_view(), name="project-detail"
     ),
+    # Employees
+    path("employees/", views.EmployeeListView.as_view(), name="employee-list"),
+    path("employees/<uuid:pk>/", views.EmployeeDetailView.as_view(), name="employee-detail"),
+    # Sprints
+    path("sprints/", views.SprintListView.as_view(), name="sprint-list"),
+    path("sprints/<uuid:pk>/", views.SprintDetailView.as_view(), name="sprint-detail"),
+    path("sprints/<int:sprint_number>/tickets/", views.SprintTicketsOutcomeView.as_view(), name="sprint-tickets-outcome"),
+    path("sprints/<int:sprint_number>/meetings/", views.SprintMeetingsView.as_view(), name="sprint-meetings"),
+    # Decisions
+    path("decisions/", views.DecisionListView.as_view(), name="decision-list"),
+    path("decisions/<uuid:pk>/", views.DecisionDetailView.as_view(), name="decision-detail"),
     # Search
     path("search/", views.SearchView.as_view(), name="search"),
     # test
