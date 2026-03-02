@@ -2,62 +2,8 @@
    EX-CDI — Project Dashboard JavaScript
    ============================================================ */
 
-// ── Sprint Data ──────────────────────────────────────────────
-const SPRINTS = [
-  {
-    id: 's1', name: 'Sprint 1', status: 'completed',
-    dates: ['2026-02-03', '2026-02-14'],
-    issues: [
-      { issue_key: 'ONBOARD-10', issue_type: 'Story', summary: 'Project scaffolding & CI/CD pipeline', status: 'Done', priority: 'High', assignee: 'Jordan Rivera', reporter: 'Sarah Mitchell', created_date: '2026-02-03T00:00:00Z', updated_date: '2026-02-07T00:00:00Z', resolved_date: '2026-02-07T00:00:00Z', labels: 'devops;infrastructure', epic_link: 'ONBOARD-1', story_points: 5, comments: '[2026-02-04 10:00 - Jordan Rivera] Initialized monorepo. Docker Compose for local dev.\n[2026-02-07 14:00 - Jordan Rivera] GitHub Actions CI pipeline live.' },
-      { issue_key: 'ONBOARD-11', issue_type: 'Task', summary: 'Design system & component library', status: 'Done', priority: 'Medium', assignee: 'Lisa Park', reporter: 'Alex Kumar', created_date: '2026-02-03T00:00:00Z', updated_date: '2026-02-10T00:00:00Z', resolved_date: '2026-02-10T00:00:00Z', labels: 'frontend;design', epic_link: 'ONBOARD-1', story_points: 3, comments: '[2026-02-05 09:00 - Lisa Park] Tailwind + Storybook done.\n[2026-02-10 11:00 - Lisa Park] 12 base components published.' },
-      { issue_key: 'ONBOARD-12', issue_type: 'Story', summary: 'User authentication & session management', status: 'Done', priority: 'Critical', assignee: 'Dave Rossi', reporter: 'Sarah Mitchell', created_date: '2026-02-04T00:00:00Z', updated_date: '2026-02-12T00:00:00Z', resolved_date: '2026-02-12T00:00:00Z', labels: 'backend;auth;security', epic_link: 'ONBOARD-1', story_points: 8, comments: '[2026-02-06 10:00 - Dave Rossi] JWT auth flow implemented.\n[2026-02-12 09:00 - Sarah Mitchell] Security review passed.' },
-      { issue_key: 'ONBOARD-13', issue_type: 'Task', summary: 'Database schema design & seed data', status: 'Done', priority: 'High', assignee: 'Priya Lakshmi', reporter: 'Dave Rossi', created_date: '2026-02-03T00:00:00Z', updated_date: '2026-02-08T00:00:00Z', resolved_date: '2026-02-08T00:00:00Z', labels: 'database;backend', epic_link: 'ONBOARD-1', story_points: 5, comments: '[2026-02-05 15:00 - Priya Lakshmi] ERD finalized. 14 tables.\n[2026-02-08 10:00 - Priya Lakshmi] Alembic migrations + seed script.' }
-    ],
-    meetings: [
-      { date: '2026-02-03', type: 'planning', name: 'Sprint 1 Planning', project: 'ONBOARD', time: '09:00–10:30', summary: 'Kicked off project. Defined architecture, assigned stories. 21 points committed.' },
-      { date: '2026-02-07', type: 'review', name: 'Mid-Sprint Check', project: 'ONBOARD', time: '14:00–14:30', summary: 'CI/CD live. Auth in progress. Schema on track.' },
-      { date: '2026-02-14', type: 'retro', name: 'Sprint 1 Retro', project: 'ONBOARD', time: '10:00–11:00', summary: 'All 21 points delivered. Velocity baseline set. Improvement: faster PR reviews.' }
-    ],
-    aiSummary: 'Sprint 1 established the project foundation. All <strong>21 story points delivered</strong>. CI/CD pipeline operational. JWT auth with SSO deployed. Database schema finalized (14 tables). Design system published with 12 components and dark theme.'
-  },
-  {
-    id: 's2', name: 'Sprint 2', status: 'current',
-    dates: ['2026-02-17', '2026-02-28'],
-    issues: [
-      { issue_key: 'ONBOARD-30', issue_type: 'Task', summary: 'Performance optimization for dashboard', status: 'Done', priority: 'Medium', assignee: 'Lisa Park', reporter: 'Dave Rossi', created_date: '2026-01-29T00:00:00Z', updated_date: '2026-01-30T00:00:00Z', resolved_date: '2026-01-30T00:00:00Z', labels: 'frontend;performance', epic_link: 'ONBOARD-10', story_points: 3, comments: '[2026-01-30 09:30 - Lisa Park] React.memo to prevent re-renders.\n[2026-01-30 16:30 - Dave Rossi] Fixed CONN_MAX_AGE.' },
-      { issue_key: 'ONBOARD-31', issue_type: 'Story', summary: 'Real-time inventory alert system', status: 'In Progress', priority: 'High', assignee: 'Alex Kumar', reporter: 'Sarah Mitchell', created_date: '2026-02-20T00:00:00Z', updated_date: '2026-02-25T00:00:00Z', resolved_date: null, labels: 'backend;websocket', epic_link: 'ONBOARD-10', story_points: 5, comments: '[2026-02-22 10:00 - Alex Kumar] WebSocket server live.\n[2026-02-25 09:00 - Sarah Mitchell] Add retry logic for Slack.' },
-      { issue_key: 'ONBOARD-32', issue_type: 'Bug', summary: 'Data warehouse migration — schema mismatch', status: 'Blocked', priority: 'Critical', assignee: 'Jordan Rivera', reporter: 'Priya Lakshmi', created_date: '2026-02-18T00:00:00Z', updated_date: '2026-02-26T00:00:00Z', resolved_date: null, labels: 'database;migration;blocker', epic_link: 'ONBOARD-10', story_points: 8, comments: '[2026-02-19 14:00 - Jordan Rivera] 3 date format variations.\n[2026-02-26 16:00 - Jordan Rivera] Transform handles 2/3 formats.' },
-      { issue_key: 'ONBOARD-33', issue_type: 'Task', summary: 'Sales trend visualization component', status: 'In Review', priority: 'High', assignee: 'Lisa Park', reporter: 'Alex Kumar', created_date: '2026-02-21T00:00:00Z', updated_date: '2026-02-26T00:00:00Z', resolved_date: null, labels: 'frontend;charts', epic_link: 'ONBOARD-10', story_points: 5, comments: '[2026-02-23 09:00 - Lisa Park] Chart with zoom & pan.\n[2026-02-26 11:00 - Alex Kumar] Tooltip needs currency formatting.' },
-      { issue_key: 'ONBOARD-34', issue_type: 'Story', summary: 'Prediction API for churn model', status: 'Done', priority: 'High', assignee: 'Priya Lakshmi', reporter: 'Sarah Mitchell', created_date: '2026-02-20T00:00:00Z', updated_date: '2026-02-27T00:00:00Z', resolved_date: '2026-02-27T00:00:00Z', labels: 'backend;ml;api', epic_link: 'ONBOARD-10', story_points: 5, comments: '[2026-02-22 10:00 - Priya Lakshmi] AUC: 0.87.\n[2026-02-27 09:00 - Sarah Mitchell] Approved for merge.' }
-    ],
-    meetings: [
-      { date: '2026-02-17', type: 'planning', name: 'Sprint 2 Planning', project: 'ONBOARD', time: '09:00–10:30', summary: '26 story points committed. Dashboard perf and alerts prioritized. Mock data for ML.' },
-      { date: '2026-02-18', type: 'standup', name: 'Daily Standup', project: 'ONBOARD', time: '09:00–09:15', summary: 'Jordan flagged schema mismatch. Priya confirmed mock data workaround.' },
-      { date: '2026-02-21', type: 'review', name: 'Mid-Sprint Review', project: 'ONBOARD', time: '14:00–15:00', summary: 'ONBOARD-30 nearly done. WebSocket live. ONBOARD-32 still blocked.' },
-      { date: '2026-02-25', type: 'standup', name: 'Daily Standup', project: 'ONBOARD', time: '09:00–09:15', summary: 'Lisa integrated date picker. Alex testing Slack retry. Prediction API approved.' },
-      { date: '2026-02-27', type: 'review', name: 'Sprint 2 Demo', project: 'ONBOARD', time: '14:00–15:30', summary: 'Demoed perf gains, prediction API, sales chart. Blocker carries to Sprint 3.' },
-      { date: '2026-02-28', type: 'retro', name: 'Sprint 2 Retro', project: 'ONBOARD', time: '10:00–11:00', summary: '21 of 26 pts delivered. Improvement: earlier blocker escalation.' }
-    ],
-    aiSummary: '<strong>Sprint 2</strong> has 5 issues totaling <strong>26 story points</strong>. <strong>2 completed</strong> (8 pts), 2 in progress, 1 blocked. Blocker: <strong>data warehouse schema mismatch</strong> — mock data approved. Perf optimization resolved. Prediction API live (AUC 0.87). Sales visualization in review.'
-  },
-  {
-    id: 's3', name: 'Sprint 3', status: 'upcoming',
-    dates: ['2026-03-02', '2026-03-13'],
-    issues: [
-      { issue_key: 'ONBOARD-40', issue_type: 'Story', summary: 'Customer segmentation dashboard', status: 'To Do', priority: 'High', assignee: 'Alex Kumar', reporter: 'Sarah Mitchell', created_date: '2026-02-28T00:00:00Z', updated_date: '2026-02-28T00:00:00Z', resolved_date: null, labels: 'frontend;dashboard', epic_link: 'ONBOARD-10', story_points: 8, comments: '' },
-      { issue_key: 'ONBOARD-41', issue_type: 'Task', summary: 'Complete data warehouse migration', status: 'To Do', priority: 'Critical', assignee: 'Jordan Rivera', reporter: 'Priya Lakshmi', created_date: '2026-02-28T00:00:00Z', updated_date: '2026-02-28T00:00:00Z', resolved_date: null, labels: 'database;migration', epic_link: 'ONBOARD-10', story_points: 8, comments: '' },
-      { issue_key: 'ONBOARD-42', issue_type: 'Story', summary: 'Email notification system', status: 'To Do', priority: 'Medium', assignee: 'Dave Rossi', reporter: 'Sarah Mitchell', created_date: '2026-02-28T00:00:00Z', updated_date: '2026-02-28T00:00:00Z', resolved_date: null, labels: 'backend;notifications', epic_link: 'ONBOARD-10', story_points: 5, comments: '' }
-    ],
-    meetings: [],
-    aiSummary: '<strong>Sprint 3</strong> planned with 3 issues, <strong>21 story points</strong>. Focus: customer segmentation dashboard, completing warehouse migration from Sprint 2, and email notifications.'
-  },
-  {
-    id: 's4', name: 'Sprint 4', status: 'upcoming',
-    dates: ['2026-03-16', '2026-03-27'],
-    issues: [], meetings: [],
-    aiSummary: '<strong>Sprint 4</strong> backlog not yet groomed. Expected: production hardening, E2E testing, client demo prep.'
-  }
-];
+// ── Sprint Data (fetched from API) ───────────────────────────
+let SPRINTS = [];
 
 // ── Constants ────────────────────────────────────────────────
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -76,32 +22,75 @@ document.getElementById('sidebarUserName').textContent = userName;
 document.getElementById('userAvatar').textContent = userName.split(' ').map(w => w[0]).join('').substring(0, 2);
 document.getElementById('connectDetail').textContent = `${userEmail} → ${jiraDomain}`;
 
+// ── Fetch Sprints from API ───────────────────────────────────
+async function fetchSprints() {
+  const res = await fetch('/api/sprints/');
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const list = Array.isArray(data) ? data : (data.results || []);
+
+  // Map API status values to frontend status keys
+  function mapStatus(s) {
+    if (!s) return 'upcoming';
+    const lower = s.toLowerCase();
+    if (['completed', 'closed', 'done'].includes(lower)) return 'completed';
+    if (['active', 'current', 'in progress', 'in_progress'].includes(lower)) return 'current';
+    return 'upcoming'; // planned, future, etc.
+  }
+
+  SPRINTS = list.map(sp => ({
+    id: `s${sp.sprint_number}`,
+    sprint_number: sp.sprint_number,
+    name: sp.name,
+    status: mapStatus(sp.status),
+    dates: [sp.start_date, sp.end_date],
+    goal: sp.goal || '',
+    project: sp.project || null,
+    meetings: [],            // loaded on-demand per sprint
+    aiSummary: sp.goal
+      ? `<strong>${esc(sp.name)}</strong> — ${esc(sp.goal)}`
+      : `<strong>${esc(sp.name)}</strong> — Sprint backlog.`,
+  }));
+
+  return SPRINTS;
+}
+
 // ── Connection Animation ─────────────────────────────────────
-setTimeout(() => {
-  document.getElementById('step1').style.width = '100%';
-  document.getElementById('connectTitle').textContent = 'Authenticating...';
-}, 400);
+(async function initDashboard() {
+  setTimeout(() => {
+    document.getElementById('step1').style.width = '100%';
+    document.getElementById('connectTitle').textContent = 'Authenticating...';
+  }, 400);
 
-setTimeout(() => {
-  document.getElementById('step2').style.width = '100%';
-  document.getElementById('connectTitle').textContent = 'Fetching sprints...';
-}, 1200);
+  setTimeout(() => {
+    document.getElementById('step2').style.width = '100%';
+    document.getElementById('connectTitle').textContent = 'Fetching sprints...';
+  }, 1200);
 
-setTimeout(() => {
-  document.getElementById('step3').style.width = '100%';
-  document.getElementById('connectTitle').textContent = 'Loading project data...';
-}, 2000);
+  try {
+    await fetchSprints();
+  } catch (e) {
+    console.error('Failed to fetch sprints from API:', e);
+  }
 
-setTimeout(() => {
-  document.getElementById('connectBanner').classList.add('success');
-  document.getElementById('connectTitle').textContent = 'Connected to Jira';
-  document.getElementById('connectDetail').textContent = `ONBOARD · ${SPRINTS.length} sprints · ${SPRINTS.reduce((s, sp) => s + sp.issues.length, 0)} issues`;
-  document.getElementById('connectStatus').innerHTML = '<div class="dot" style="background:var(--success);animation:pulse 1.5s infinite"></div><span style="color:var(--success)">Connected</span>';
-  document.getElementById('topbarSub').textContent = `ONBOARD · ${SPRINTS.length} sprints`;
-  document.getElementById('navBadge').textContent = SPRINTS.reduce((s, sp) => s + sp.issues.length, 0);
-  buildTimeline();
-  selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
-}, 2800);
+  setTimeout(() => {
+    document.getElementById('step3').style.width = '100%';
+    document.getElementById('connectTitle').textContent = 'Loading project data...';
+  }, 2000);
+
+  setTimeout(() => {
+    document.getElementById('connectBanner').classList.add('success');
+    document.getElementById('connectTitle').textContent = 'Connected to Jira';
+    document.getElementById('connectDetail').textContent = `ONBOARD · ${SPRINTS.length} sprints`;
+    document.getElementById('connectStatus').innerHTML = '<div class="dot" style="background:var(--success);animation:pulse 1.5s infinite"></div><span style="color:var(--success)">Connected</span>';
+    document.getElementById('topbarSub').textContent = `ONBOARD · ${SPRINTS.length} sprints`;
+    document.getElementById('navBadge').textContent = SPRINTS.length;
+    buildTimeline();
+    if (SPRINTS.length) {
+      selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+    }
+  }, 2800);
+})();
 
 // ── Helpers ──────────────────────────────────────────────────
 function fmtR(s, e) {
@@ -156,8 +145,6 @@ function buildTimeline() {
   let h = `<div class="timeline-progress" style="width:${pct}%"></div>`;
 
   SPRINTS.forEach(sp => {
-    const pts = sp.issues.reduce((s, i) => s + (i.story_points || 0), 0);
-    const dp = sp.issues.filter(i => i.status === 'Done').reduce((s, i) => s + (i.story_points || 0), 0);
     const c = sp.status === 'completed' ? 'completed' : sp.status === 'current' ? 'current' : 'future';
     const t = sp.status === 'completed' ? 'done' : sp.status === 'current' ? 'active-tag' : 'upcoming';
     const tx = sp.status === 'completed' ? 'Done' : sp.status === 'current' ? 'Active' : 'Upcoming';
@@ -172,7 +159,6 @@ function buildTimeline() {
       <div class="tl-info">
         <div class="tl-sprint">${sp.name}</div>
         <div class="tl-dates">${fmtR(sp.dates[0], sp.dates[1])}</div>
-        <div class="tl-pts">${pts > 0 ? dp + '/' + pts + ' pts' : 'TBD'}</div>
         <div class="tl-status-tag ${t}">${tx}</div>
       </div>
     </div>`;
@@ -192,32 +178,20 @@ function selectSprint(id) {
   if (!sp) return;
 
   const p = document.getElementById('detailPanel');
-  const is = sp.issues;
-  const dn = is.filter(i => i.status === 'Done');
-  const bl = is.filter(i => i.status === 'Blocked');
-  const tp = is.reduce((s, i) => s + (i.story_points || 0), 0);
-  const dpn = dn.reduce((s, i) => s + (i.story_points || 0), 0);
-  const as = [...new Set(is.map(i => i.assignee))];
 
   p.innerHTML = `
     <div class="detail-header">
       <div class="detail-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
       <div>
         <div class="detail-title">${sp.name} — ONBOARD</div>
-        <div class="detail-sub">${fmtR(sp.dates[0], sp.dates[1])} · ${is.length} issues · ${as.length} members</div>
-      </div>
-      <div class="detail-stats">
-        <div class="detail-stat"><div class="detail-stat-val" style="color:var(--accent)">${tp}</div><div class="detail-stat-label">Points</div></div>
-        <div class="detail-stat"><div class="detail-stat-val" style="color:var(--success)">${dpn}</div><div class="detail-stat-label">Completed</div></div>
-        <div class="detail-stat"><div class="detail-stat-val" style="color:var(--danger)">${bl.length}</div><div class="detail-stat-label">Blocked</div></div>
+        <div class="detail-sub">${fmtR(sp.dates[0], sp.dates[1])}</div>
       </div>
     </div>
 
     <div class="tabs-strip">
       <div class="tab-item active" onclick="sTab('dp','summary',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>AI Summary</div>
-      <div class="tab-item" onclick="sTab('dp','meetings',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Meetings</div>
+      <div class="tab-item" onclick="sTab('dp','meetings',this);loadSprintMeetings(${sp.sprint_number})"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Meetings</div>
       <div class="tab-item" onclick="sTab('dp','outcomes',this);loadTickets()"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Outcomes</div>
-      <div class="tab-item" onclick="sTab('dp','issues',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>All Issues</div>
       <div class="tab-item" onclick="sTab('dp','decisions',this);loadDecisions()"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Decisions</div>
     </div>
 
@@ -226,32 +200,15 @@ function selectSprint(id) {
         <div class="ai-label"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg><span class="ai-dot"></span>AI Sprint Summary</div>
         <div class="ai-summary-text">${sp.aiSummary}</div>
       </div>
-      <div class="stat-mini-grid">
-        <div class="stat-mini"><div class="stat-mini-val" style="color:var(--accent)">${tp}</div><div class="stat-mini-label">Story Points</div></div>
-        <div class="stat-mini"><div class="stat-mini-val" style="color:var(--warn)">${bl.length}</div><div class="stat-mini-label">Blockers</div></div>
-        <div class="stat-mini"><div class="stat-mini-val" style="color:var(--success)">${dn.length}/${is.length}</div><div class="stat-mini-label">Completed</div></div>
-      </div>
-      ${as.length
-        ? `<div class="section-sub">Team</div><div class="participants">${as.map(n =>
-            `<div class="participant"><div class="part-avatar" style="background:${gr(n)}">${ini(n)}</div><div><div class="part-name">${n}</div><div class="part-role">${rl(n, is)}</div></div></div>`
-          ).join('')}</div>`
-        : '<p style="color:var(--muted);font-size:13px">No team assigned yet.</p>'
-      }
+      ${sp.goal ? `<div class="stat-mini-grid"><div class="stat-mini"><div class="stat-mini-val" style="color:var(--accent)">Goal</div><div class="stat-mini-label">${esc(sp.goal)}</div></div></div>` : ''}
     </div>
 
-    <div class="tab-content" id="dp-meetings">${bCal(sp)}</div>
+    <div class="tab-content" id="dp-meetings">
+      <div class="decisions-loading"><div class="spinner"></div>Click Meetings tab to load…</div>
+    </div>
 
     <div class="tab-content" id="dp-outcomes">
       <div class="decisions-loading"><div class="spinner"></div>Click to load outcomes…</div>
-    </div>
-
-    <div class="tab-content" id="dp-issues">
-      ${is.length
-        ? `<table class="decisions-table"><thead><tr><th>Issue</th><th>Summary</th><th>Assignee</th><th>Pts</th><th>Status</th></tr></thead><tbody>${is.map(i =>
-            `<tr><td style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">${i.issue_key}</td><td>${i.summary}</td><td>${i.assignee}</td><td style="text-align:center">${i.story_points}</td><td><span class="status-pill ${pCl(i.status)}">${i.status}</span></td></tr>`
-          ).join('')}</tbody></table>`
-        : '<p style="color:var(--muted);font-size:13px">Backlog not groomed.</p>'
-      }
     </div>
 
     <div class="tab-content" id="dp-decisions">
@@ -267,14 +224,23 @@ function selectSprint(id) {
 }
 
 // ── Calendar Builder ─────────────────────────────────────────
-function bCal(sp) {
-  if (!sp.meetings.length) return '<p style="color:var(--muted);font-size:13px;padding:4px">No meetings scheduled.</p>';
+function bCal(sp, meetings) {
+  if (!meetings || !meetings.length) return '<p style="color:var(--muted);font-size:13px;padding:4px">No meetings scheduled for this sprint.</p>';
 
   const st = new Date(sp.dates[0]), en = new Date(sp.dates[1]);
   const yr = st.getFullYear(), mo = st.getMonth();
   const fd = new Date(yr, mo, 1).getDay(), dm = new Date(yr, mo + 1, 0).getDate();
   const mm = {};
-  sp.meetings.forEach(m => { mm[m.date] = m; });
+  meetings.forEach(m => {
+    const mDate = (m.meeting_date || m.date || '').split('T')[0];
+    // Infer meeting type from title
+    let type = 'planning';
+    const titleLower = (m.title || '').toLowerCase();
+    if (titleLower.includes('standup') || titleLower.includes('daily')) type = 'standup';
+    else if (titleLower.includes('retro')) type = 'retro';
+    else if (titleLower.includes('review') || titleLower.includes('demo') || titleLower.includes('mid-sprint') || titleLower.includes('midsprint')) type = 'review';
+    mm[mDate] = { ...m, date: mDate, type, name: m.title || 'Meeting', project: 'ONBOARD', time: '' };
+  });
   const td = new Date().toISOString().split('T')[0];
 
   let h = `<div class="cal-month"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${MO[mo]} ${yr}</div><div class="cal-grid">`;
@@ -296,13 +262,44 @@ function bCal(sp) {
     if (iT) c += ' today';
     if (m) c += ` has-meeting type-${m.type}`;
 
-    const clickAttr = m ? ` onclick="window.openMeetingPopup('${m.date}','${esc(m.type)}','${esc(m.name)}','${esc(m.project)}','${esc(m.time)}','${esc(m.summary).replace(/'/g, "&#39;")}')"` : '';
+    const clickAttr = m ? ` onclick="window.openMeetingPopup('${m.date}','${esc(m.type)}','${esc(m.name)}','${esc(m.project)}','${esc(m.time)}','${esc((m.summary || '').replace(/'/g, "&#39;"))}')"` : '';
 
     h += `<div class="${c}"${clickAttr}>${d}</div>`;
   }
 
   h += '</div><div class="cal-legend"><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent)"></div>Planning</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--success)"></div>Standup</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent2)"></div>Review</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--warn)"></div>Retro</div></div>';
   return h;
+}
+
+// ── Load Sprint Meetings from API ────────────────────────────
+let sprintMeetingsCache = {};
+
+function loadSprintMeetings(sprintNumber) {
+  const container = document.getElementById('dp-meetings');
+  if (!container) return;
+
+  // Check cache first
+  if (sprintMeetingsCache[sprintNumber]) {
+    const sp = SPRINTS.find(s => s.sprint_number === sprintNumber);
+    if (sp) container.innerHTML = bCal(sp, sprintMeetingsCache[sprintNumber]);
+    return;
+  }
+
+  container.innerHTML = '<div class="decisions-loading"><div class="spinner"></div>Fetching sprint meetings…</div>';
+
+  fetch(`/api/sprints/${sprintNumber}/meetings/`)
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(data => {
+      const meetings = Array.isArray(data) ? data : (data.results || []);
+      sprintMeetingsCache[sprintNumber] = meetings;
+      const sp = SPRINTS.find(s => s.sprint_number === sprintNumber);
+      if (sp && container) {
+        container.innerHTML = bCal(sp, meetings);
+      }
+    })
+    .catch(err => {
+      container.innerHTML = `<div class="decisions-error">⚠ Failed to load meetings: ${err.message}<br><button class="btn btn-ghost" style="margin-top:12px" onclick="window.loadSprintMeetings(${sprintNumber})">Retry</button></div>`;
+    });
 }
 
 // ── Tab Switching ────────────────────────────────────────────
@@ -936,3 +933,4 @@ window.setTktView = setTktView;
 window.setTktFilter = setTktFilter;
 window.openMeetingPopup = openMeetingPopup;
 window.closeMeetingPopup = closeMeetingPopup;
+window.loadSprintMeetings = loadSprintMeetings;
