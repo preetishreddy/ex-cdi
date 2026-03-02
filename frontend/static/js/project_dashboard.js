@@ -60,6 +60,23 @@ async function fetchSprints() {
   const barFill = document.getElementById('loadingBarFill');
   const loadText = document.getElementById('loadingText');
 
+  // Only show the loading animation on first visit after login
+  const alreadyLoaded = sessionStorage.getItem('dashboardLoaded');
+
+  if (alreadyLoaded) {
+    // Skip animation — just fetch data and render immediately
+    overlay.remove();
+    try { await fetchSprints(); } catch (e) { console.error('Failed to fetch sprints:', e); }
+    document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
+    buildTimeline();
+    if (SPRINTS.length) {
+      selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+    }
+    return;
+  }
+
+  sessionStorage.setItem('dashboardLoaded', '1');
+
   // Step 1 – animate bar
   setTimeout(() => { barFill.style.width = '30%'; loadText.textContent = 'Connecting to workspace...'; }, 300);
   setTimeout(() => { barFill.style.width = '55%'; loadText.textContent = 'Fetching sprints...'; }, 900);
@@ -82,8 +99,7 @@ async function fetchSprints() {
   // Step 4 – hide overlay & render
   setTimeout(() => {
     overlay.classList.add('hidden');
-    document.getElementById('topbarSub').textContent = `ONBOARD · ${SPRINTS.length} sprints`;
-    document.getElementById('navBadge').textContent = SPRINTS.length;
+    document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
     buildTimeline();
     if (SPRINTS.length) {
       selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
@@ -1009,67 +1025,128 @@ document.getElementById('meetingPopupOverlay')?.addEventListener('click', e => {
   if (e.target === e.currentTarget) closeMeetingPopup();
 });
 
-// ── Sidebar: Collapsible Projects Section ────────────────────
-let projectListLoaded = false;
+// ── Sidebar: Project Icon Rail + Flyout ──────────────────────
+const PRJ_GRADIENTS = [
+  'linear-gradient(135deg,#1e8fff,#6c5ce7)',
+  'linear-gradient(135deg,#00d48a,#0abde3)',
+  'linear-gradient(135deg,#f5a623,#ff6b6b)',
+  'linear-gradient(135deg,#e84393,#fd79a8)',
+  'linear-gradient(135deg,#6c5ce7,#a29bfe)',
+  'linear-gradient(135deg,#0abde3,#1e8fff)',
+];
+let projectsCache = [];
 
-function toggleProjectList() {
-  const list = document.getElementById('projectList');
-  const chevron = document.getElementById('projectChevron');
-  const isCollapsed = list.classList.toggle('collapsed');
-  chevron.classList.toggle('collapsed', isCollapsed);
-  localStorage.setItem('projectListCollapsed', isCollapsed ? '1' : '0');
-  if (!projectListLoaded && !isCollapsed) loadProjectList();
-}
-
-async function loadProjectList() {
-  const container = document.getElementById('projectList');
-  if (!container) return;
+async function loadProjectRail() {
+  const rail = document.getElementById('projectRail');
+  if (!rail) return;
   try {
     const res = await fetch('/api/projects/');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const projects = Array.isArray(data) ? data : (data.results || []);
-    if (!projects.length) {
-      container.innerHTML = '<div class="project-list-loading"><span class="nav-label" style="color:var(--muted);font-size:11px">No projects found</span></div>';
+    projectsCache = Array.isArray(data) ? data : (data.results || []);
+    if (!projectsCache.length) {
+      rail.innerHTML = '<span style="font-size:11px;color:var(--muted);padding:2px 0">No projects</span>';
       return;
     }
-    container.innerHTML = projects.map(p => {
+    const currentPid = new URLSearchParams(window.location.search).get('project');
+    const currentPage = new URLSearchParams(window.location.search).get('page') || 'overview';
+    rail.innerHTML = projectsCache.map((p, i) => {
+      const initials = (p.name || '').split(/\s+/).map(w => w[0]).join('').substring(0, 2).toUpperCase();
+      const bg = PRJ_GRADIENTS[i % PRJ_GRADIENTS.length];
+      const isActive = p.id === currentPid;
       const statusCls = (p.status || 'active').toLowerCase().replace(/\s+/g, '_');
-      const label = esc(p.name);
-      // Link to this page with project id as query param
-      return `<a class="project-link" href="project_dashboard.html?project=${p.id}" data-label="${label}" data-project-id="${p.id}">`
-        + `<span class="project-dot ${statusCls}"></span>`
-        + `<span class="project-name nav-label">${label}</span></a>`;
+      const overviewUrl = `project_dashboard.html?project=${p.id}&page=overview`;
+      const integrationsUrl = `project_dashboard.html?project=${p.id}&page=integrations`;
+      return `<div class="prj-item${isActive ? ' active-prj' : ''}" data-label="${esc(p.name)}" data-idx="${i}" onclick="window.location='${overviewUrl}'" onmouseenter="showProjectFlyout(event,${i})" onmouseleave="hideProjectFlyout()">`
+        + `<div class="prj-orb" style="background:${bg}">${initials}</div>`
+        + `<span class="prj-name">${esc(p.name)}</span>`
+        + `<span class="prj-status-dot s-${statusCls}"></span></div>`
+        + `<div class="prj-sub-links${isActive ? ' expanded' : ''}">`
+        + `<a class="prj-sub-link${isActive && currentPage === 'overview' ? ' active-sub' : ''}" href="${overviewUrl}"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span class="nav-label">Overview</span></a>`
+        + `<a class="prj-sub-link${isActive && currentPage === 'integrations' ? ' active-sub' : ''}" href="${integrationsUrl}"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span class="nav-label">Integrations</span></a>`
+        + `</div>`;
     }).join('');
-    projectListLoaded = true;
-    highlightCurrentProject();
+    // Update page title with the active project name
+    updatePageTitle(currentPid);
   } catch (e) {
-    console.error('Failed to load projects:', e);
-    container.innerHTML = '<div class="project-list-loading"><span class="nav-label" style="color:var(--muted);font-size:11px">Could not load projects</span></div>';
+    console.error('Failed to load project rail:', e);
+    rail.innerHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
   }
 }
 
-function highlightCurrentProject() {
-  const params = new URLSearchParams(window.location.search);
-  const pid = params.get('project');
-  document.querySelectorAll('.project-link').forEach(el => {
-    el.classList.toggle('active', el.dataset.projectId === pid);
-  });
+let flyoutTimer = null;
+function showProjectFlyout(e, idx) {
+  clearTimeout(flyoutTimer);
+  const p = projectsCache[idx];
+  if (!p) return;
+  const flyout = document.getElementById('projectFlyout');
+  const orb = e.currentTarget;
+  const rect = orb.getBoundingClientRect();
+
+  // Position flyout to the right of the item
+  const sidebarEl = document.getElementById('sidebar');
+  const sidebarRect = sidebarEl ? sidebarEl.getBoundingClientRect() : { right: rect.right + 12 };
+  flyout.style.left = (sidebarRect.right + 8) + 'px';
+  flyout.style.top  = (rect.top - 4) + 'px';
+
+  // Populate content
+  document.getElementById('flyoutTitle').textContent = p.name;
+  const statusCls = (p.status || 'active').toLowerCase().replace(/\s+/g, '_');
+  const statusEl = document.getElementById('flyoutStatus');
+  statusEl.textContent = (p.status || 'active').replace(/_/g, ' ');
+  statusEl.className = 'flyout-status s-' + statusCls;
+
+  const body = document.getElementById('flyoutBody');
+  body.textContent = p.description || 'No description available.';
+
+  const link = document.getElementById('flyoutLink');
+  link.href = 'project_dashboard.html?project=' + p.id;
+
+  flyout.classList.add('visible');
 }
 
-// Auto-load on page init (after a small delay so sidebar renders first)
+function hideProjectFlyout() {
+  flyoutTimer = setTimeout(() => {
+    document.getElementById('projectFlyout')?.classList.remove('visible');
+  }, 200);
+}
+
+// Keep flyout open while hovering over it
 setTimeout(() => {
-  const saved = localStorage.getItem('projectListCollapsed');
-  if (saved === '1') {
-    document.getElementById('projectList')?.classList.add('collapsed');
-    document.getElementById('projectChevron')?.classList.add('collapsed');
-  } else {
-    loadProjectList();
+  const flyout = document.getElementById('projectFlyout');
+  if (flyout) {
+    flyout.addEventListener('mouseenter', () => clearTimeout(flyoutTimer));
+    flyout.addEventListener('mouseleave', () => hideProjectFlyout());
   }
-}, 100);
+}, 0);
+
+// Load rail once sidebar renders
+setTimeout(() => loadProjectRail(), 120);
+
+// ── Update page title with project name ──────────────────────
+function updatePageTitle(pid) {
+  if (!pid && projectsCache.length) pid = projectsCache[0].id;
+  const project = projectsCache.find(p => p.id === pid);
+  const titleEl = document.querySelector('.page-title');
+  if (titleEl && project) {
+    titleEl.textContent = project.name + ' Overview';
+    document.title = 'EX-CDI — ' + project.name + ' Overview';
+  }
+}
+
+// Also try to set title from URL on initial load (before API returns)
+(function() {
+  const pid = new URLSearchParams(window.location.search).get('project');
+  if (pid) {
+    // Will be updated properly once API data loads
+    const titleEl = document.querySelector('.page-title');
+    if (titleEl) titleEl.textContent = 'Loading project...';
+  }
+})();
 
 // ── Expose functions to global scope (needed for inline onclick in ES modules) ──
-window.toggleProjectList = toggleProjectList;
+window.showProjectFlyout = showProjectFlyout;
+window.hideProjectFlyout = hideProjectFlyout;
 window.sTab = sTab;
 window.oIt = oIt;
 window.selectSprint = selectSprint;
