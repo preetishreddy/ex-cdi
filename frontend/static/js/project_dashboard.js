@@ -94,8 +94,21 @@ async function fetchSprints() {
 })();
 
 // ── Helpers ──────────────────────────────────────────────────
+// Parse any date string as *local* — avoids UTC-midnight off-by-one.
+// Date-only "YYYY-MM-DD" → construct local; datetime with T/Z → new Date (local getters).
+function localDate(s) {
+  const str = String(s || '');
+  if (str.includes('T') || str.includes('Z')) return new Date(str);
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d || 1);
+}
+function localDateStr(s) {
+  const d = localDate(s);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function fmtR(s, e) {
-  const a = new Date(s), b = new Date(e);
+  const a = localDate(s), b = localDate(e);
   return `${MO[a.getMonth()]} ${a.getDate()} – ${MO[b.getMonth()]} ${b.getDate()}`;
 }
 
@@ -228,13 +241,16 @@ function selectSprint(id) {
 function bCal(sp, meetings) {
   if (!meetings || !meetings.length) return '<p style="color:var(--muted);font-size:13px;padding:4px">No meetings scheduled for this sprint.</p>';
 
-  const st = new Date(sp.dates[0]), en = new Date(sp.dates[1]);
-  const yr = st.getFullYear(), mo = st.getMonth();
-  const fd = new Date(yr, mo, 1).getDay(), dm = new Date(yr, mo + 1, 0).getDate();
+  // Parse sprint start/end as local dates (avoid UTC offset issues)
+  const [sy, sm, sd] = sp.dates[0].split('-').map(Number);
+  const [ey, em, ed] = sp.dates[1].split('-').map(Number);
+  const stLocal = new Date(sy, sm - 1, sd);
+  const enLocal = new Date(ey, em - 1, ed);
+
+  // Build meeting map keyed by LOCAL date string (avoids UTC off-by-one)
   const mm = {};
   meetings.forEach(m => {
-    const mDate = (m.meeting_date || m.date || '').split('T')[0];
-    // Infer meeting type from title
+    const mDate = localDateStr(m.meeting_date || m.date || '');
     let type = 'planning';
     const titleLower = (m.title || '').toLowerCase();
     if (titleLower.includes('standup') || titleLower.includes('daily')) type = 'standup';
@@ -242,33 +258,54 @@ function bCal(sp, meetings) {
     else if (titleLower.includes('review') || titleLower.includes('demo') || titleLower.includes('mid-sprint') || titleLower.includes('midsprint')) type = 'review';
     mm[mDate] = { ...m, date: mDate, type, name: m.title || 'Meeting', project: 'ONBOARD', time: '' };
   });
-  const td = new Date().toISOString().split('T')[0];
 
-  let h = `<div class="cal-month"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${MO[mo]} ${yr}</div><div class="cal-grid">`;
+  const td = new Date();
+  const todayStr = `${td.getFullYear()}-${String(td.getMonth() + 1).padStart(2, '0')}-${String(td.getDate()).padStart(2, '0')}`;
 
-  ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(d => {
-    h += `<div class="cal-head">${d}</div>`;
-  });
-
-  for (let i = 0; i < fd; i++) h += '<div class="cal-day"></div>';
-
-  for (let d = 1; d <= dm; d++) {
-    const ds = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const dO = new Date(yr, mo, d);
-    const iS = dO >= st && dO <= en;
-    const iT = ds === td;
-    const m = mm[ds];
-    let c = 'cal-day';
-    if (iS) c += ' in-sprint';
-    if (iT) c += ' today';
-    if (m) c += ` has-meeting type-${m.type}`;
-
-    const clickAttr = m ? ` onclick="window.openMeetingPopup('${m.date}','${esc(m.type)}','${esc(m.name)}','${esc(m.project)}','${esc(m.time)}','${esc((m.summary || '').replace(/'/g, "&#39;"))}')"` : '';
-
-    h += `<div class="${c}"${clickAttr}>${d}</div>`;
+  // Collect unique months that the sprint spans
+  const months = [];
+  let cur = new Date(sy, sm - 1, 1);
+  const lastMonth = new Date(ey, em - 1, 1);
+  while (cur <= lastMonth) {
+    months.push({ yr: cur.getFullYear(), mo: cur.getMonth() });
+    cur.setMonth(cur.getMonth() + 1);
   }
 
-  h += '</div><div class="cal-legend"><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent)"></div>Planning</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--success)"></div>Standup</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent2)"></div>Review</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--warn)"></div>Retro</div></div>';
+  let h = '';
+  months.forEach(({ yr, mo }) => {
+    const fd = new Date(yr, mo, 1).getDay();
+    const dm = new Date(yr, mo + 1, 0).getDate();
+
+    h += `<div class="cal-month"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${MO[mo]} ${yr}</div><div class="cal-grid">`;
+
+    ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(d => {
+      h += `<div class="cal-head">${d}</div>`;
+    });
+
+    for (let i = 0; i < fd; i++) h += '<div class="cal-day"></div>';
+
+    for (let d = 1; d <= dm; d++) {
+      const ds = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dO = new Date(yr, mo, d);
+      const iS = dO >= stLocal && dO <= enLocal;
+      const iT = ds === todayStr;
+      const m = mm[ds];
+      let c = 'cal-day';
+      if (iS) c += ' in-sprint';
+      if (iT) c += ' today';
+      if (m) c += ` has-meeting type-${m.type}`;
+
+      // Hover tooltip for meeting dates
+      const titleAttr = m ? ` title="${esc(m.name)}"` : '';
+      const clickAttr = m ? ` onclick="window.openMeetingPopup('${m.date}','${esc(m.type)}','${esc(m.name)}','${esc(m.project)}','${esc(m.time)}','${esc((m.summary || '').replace(/'/g, "&#39;"))}')"` : '';
+
+      h += `<div class="${c}"${titleAttr}${clickAttr}>${d}</div>`;
+    }
+
+    h += '</div>';
+  });
+
+  h += '<div class="cal-legend"><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent)"></div>Planning</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--success)"></div>Standup</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent2)"></div>Review</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--warn)"></div>Retro</div></div>';
   return h;
 }
 
@@ -858,9 +895,9 @@ function openMeetingPopup(date, type, name, project, time, fallbackSummary) {
     .then(data => {
       const meetings = Array.isArray(data) ? data : (data.results || []);
 
-      // 1. Try exact date match first
+      // 1. Try exact date match first (compare local dates)
       let match = meetings.find(m => {
-        const mDate = (m.meeting_date || '').split('T')[0];
+        const mDate = localDateStr(m.meeting_date || '');
         return mDate === date;
       });
 
