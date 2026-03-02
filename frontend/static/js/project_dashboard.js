@@ -375,63 +375,195 @@ function loadDecisions() {
     });
 }
 
+// Category icon map — SVG paths for known categories
+const CAT_ICONS = {
+  architecture: '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>',
+  process:      '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  security:     '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  technology:   '<rect x="4" y="4" width="16" height="16" rx="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/>',
+  data:         '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
+  design:       '<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>',
+  _default:     '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
+};
+
+function getCatIcon(category) {
+  const key = (category || '').toLowerCase();
+  for (const k of Object.keys(CAT_ICONS)) {
+    if (k !== '_default' && key.includes(k)) return CAT_ICONS[k];
+  }
+  return CAT_ICONS._default;
+}
+
+// ── Current decisions view state ──
+let dtlViewMode = 'overall';   // 'overall' | 'grouped' | 'filter'
+let dtlActiveFilter = null;    // selected category in filter mode
+
+// ── Shared: render a single decision entry card ──
+function renderDecisionEntry(d, showCatBadge) {
+  const confPct = Math.min(Math.max((d.confidence_score || 0), 0), 1) * 100;
+  const confColor = confPct >= 70 ? 'var(--success)' : confPct >= 40 ? 'var(--warn)' : 'var(--danger)';
+  const statusCls = d.status === 'active' ? 'active' : d.status === 'superseded' ? 'superseded' : d.status === 'deprecated' ? 'deprecated' : 'draft';
+  const cat = d.category || 'Uncategorized';
+
+  return `<div class="dtl-entry status-${statusCls}">
+    <div class="dtl-node"><div class="dtl-node-dot"></div></div>
+    <div class="dtl-date">${d.decision_date || 'No date'}</div>
+    <div class="dtl-card">
+      <div class="dtl-card-top">
+        <div class="dtl-title">${esc(d.title || 'Untitled')}</div>
+        <div class="dtl-card-badges">
+          ${showCatBadge ? `<span class="dtl-cat-badge">${esc(cat)}</span>` : ''}
+          <span class="decision-status ${statusCls}">${esc(d.status || 'unknown')}</span>
+        </div>
+      </div>
+      <div class="dtl-desc">${esc(d.description || '')}</div>
+      ${d.rationale ? `<div class="dtl-rationale"><strong style="color:var(--accent);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Rationale</strong><br>${esc(d.rationale)}</div>` : ''}
+      <div class="dtl-meta-row">
+        <div class="dtl-meta-item">
+          <div class="dtl-meta-label">Source</div>
+          <div class="dtl-meta-val">${esc(d.source_type || '—')}</div>
+        </div>
+        <div class="dtl-meta-item">
+          <div class="dtl-meta-label">Source ID</div>
+          <div class="decision-uuid">${esc(d.source_id || '—')}</div>
+        </div>
+        <div class="dtl-meta-item">
+          <div class="dtl-meta-label">Confidence</div>
+          <div class="decision-confidence">
+            <div class="confidence-bar"><div class="confidence-fill" style="width:${confPct}%;background:${confColor}"></div></div>
+            <span style="font-family:var(--font-mono);font-size:11px;color:${confColor}">${(d.confidence_score || 0).toFixed(2)}</span>
+          </div>
+        </div>
+        ${d.superseded_by ? `<div class="dtl-meta-item"><div class="dtl-meta-label">Superseded By</div><div class="decision-uuid">${esc(d.superseded_by)}</div></div>` : ''}
+        ${d.supersedes ? `<div class="dtl-meta-item"><div class="dtl-meta-label">Supersedes</div><div class="decision-uuid">${esc(d.supersedes)}</div></div>` : ''}
+      </div>
+      ${d.decided_by && d.decided_by.length ? `<div style="margin-bottom:8px"><div class="dtl-meta-label" style="margin-bottom:5px">Decided By</div><div class="decision-decided-by">${d.decided_by.map(p => `<span class="decided-by-chip">${esc(p)}</span>`).join('')}</div></div>` : ''}
+      ${d.related_decisions && d.related_decisions.length ? `<div style="margin-bottom:8px"><div class="dtl-meta-label" style="margin-bottom:5px">Related Decisions</div>${d.related_decisions.map(rd => `<div class="decision-uuid" style="margin-bottom:2px">${esc(rd)}</div>`).join('')}</div>` : ''}
+      ${d.tags && d.tags.length ? `<div class="decision-tags">${d.tags.map(t => `<span class="decision-tag">${esc(t)}</span>`).join('')}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── View 1: Overall flat timeline ──
+function renderOverall(decisions) {
+  const sorted = [...decisions].sort((a, b) => (b.decision_date || '').localeCompare(a.decision_date || ''));
+  return `<div class="decisions-timeline">${sorted.map(d => renderDecisionEntry(d, true)).join('')}</div>`;
+}
+
+// ── View 2: Grouped by category ──
+function renderGrouped(decisions) {
+  const groups = {};
+  decisions.forEach(d => {
+    const cat = d.category || 'Uncategorized';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(d);
+  });
+  const catOrder = Object.keys(groups).sort((a, b) => {
+    if (a === 'Uncategorized') return 1;
+    if (b === 'Uncategorized') return -1;
+    return a.localeCompare(b);
+  });
+  let h = '';
+  catOrder.forEach(cat => {
+    const items = groups[cat].sort((a, b) => (b.decision_date || '').localeCompare(a.decision_date || ''));
+    const activeCount = items.filter(d => d.status === 'active').length;
+    const iconSvg = getCatIcon(cat);
+    h += `<div class="dtl-category-section">
+      <div class="dtl-category-header">
+        <div class="dtl-category-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg></div>
+        <div class="dtl-category-info">
+          <div class="dtl-category-name">${esc(cat)}</div>
+          <div class="dtl-category-count">${items.length} decision${items.length !== 1 ? 's' : ''}${activeCount ? ' · ' + activeCount + ' active' : ''}</div>
+        </div>
+      </div>
+      <div class="decisions-timeline">${items.map(d => renderDecisionEntry(d, false)).join('')}</div>
+    </div>`;
+  });
+  return h;
+}
+
+// ── View 3: Category filter ──
+function renderFilter(decisions, activeCat) {
+  // Collect unique categories
+  const cats = [...new Set(decisions.map(d => d.category || 'Uncategorized'))].sort((a, b) => {
+    if (a === 'Uncategorized') return 1;
+    if (b === 'Uncategorized') return -1;
+    return a.localeCompare(b);
+  });
+
+  // Build filter chips bar
+  let h = `<div class="dtl-filter-bar">`;
+  cats.forEach(cat => {
+    const count = decisions.filter(d => (d.category || 'Uncategorized') === cat).length;
+    const sel = activeCat === cat ? ' active' : '';
+    const iconSvg = getCatIcon(cat);
+    h += `<button class="dtl-filter-chip${sel}" onclick="window.setDtlFilter('${esc(cat).replace(/'/g, "\\'")}')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg>${esc(cat)}<span class="dtl-filter-count">${count}</span></button>`;
+  });
+  h += `</div>`;
+
+  // Show timeline for selected category (or prompt)
+  if (activeCat) {
+    const filtered = decisions
+      .filter(d => (d.category || 'Uncategorized') === activeCat)
+      .sort((a, b) => (b.decision_date || '').localeCompare(a.decision_date || ''));
+    h += `<div class="decisions-timeline">${filtered.map(d => renderDecisionEntry(d, false)).join('')}</div>`;
+  } else {
+    h += `<div class="decisions-empty" style="margin-top:8px">Select a category above to filter decisions.</div>`;
+  }
+  return h;
+}
+
+// ── Main render controller ──
 function renderDecisions(container, decisions) {
   if (!decisions.length) {
     container.innerHTML = '<div class="decisions-empty">No decisions found.</div>';
     return;
   }
 
-  // sort newest-first by decision_date
-  const sorted = [...decisions].sort((a, b) => {
-    const da = a.decision_date || ''; const db = b.decision_date || '';
-    return db.localeCompare(da);
-  });
+  // Toolbar
+  const totalCount = decisions.length;
+  const catCount = new Set(decisions.map(d => d.category || 'Uncategorized')).size;
+  const toolbar = `<div class="dtl-toolbar">
+    <div class="dtl-toolbar-left">
+      <button class="dtl-view-btn${dtlViewMode === 'overall' ? ' active' : ''}" onclick="window.setDtlView('overall')">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+        Overall
+      </button>
+      <button class="dtl-view-btn${dtlViewMode === 'grouped' ? ' active' : ''}" onclick="window.setDtlView('grouped')">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Grouped
+      </button>
+      <button class="dtl-view-btn${dtlViewMode === 'filter' ? ' active' : ''}" onclick="window.setDtlView('filter')">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        Filter
+      </button>
+    </div>
+    <div class="dtl-toolbar-right">
+      <span class="dtl-toolbar-stat">${totalCount} decisions</span>
+      <span class="dtl-toolbar-stat">${catCount} categories</span>
+    </div>
+  </div>`;
 
-  let h = '<div class="decisions-timeline">';
+  // Body based on current view mode
+  let body = '';
+  if (dtlViewMode === 'overall')      body = renderOverall(decisions);
+  else if (dtlViewMode === 'grouped') body = renderGrouped(decisions);
+  else if (dtlViewMode === 'filter')  body = renderFilter(decisions, dtlActiveFilter);
 
-  sorted.forEach(d => {
-    const confPct = Math.min(Math.max((d.confidence_score || 0), 0), 1) * 100;
-    const confColor = confPct >= 70 ? 'var(--success)' : confPct >= 40 ? 'var(--warn)' : 'var(--danger)';
-    const statusCls = d.status === 'active' ? 'active' : d.status === 'superseded' ? 'superseded' : d.status === 'deprecated' ? 'deprecated' : 'draft';
+  container.innerHTML = toolbar + `<div class="dtl-view-body">${body}</div>`;
+}
 
-    h += `<div class="dtl-entry status-${statusCls}">
-      <div class="dtl-node"><div class="dtl-node-dot"></div></div>
-      <div class="dtl-date">${d.decision_date || 'No date'}</div>
-      <div class="dtl-card">
-        <div class="dtl-card-top">
-          <div class="dtl-title">${esc(d.title || 'Untitled')}</div>
-          <span class="decision-status ${statusCls}">${esc(d.status || 'unknown')}</span>
-        </div>
-        <div class="dtl-desc">${esc(d.description || '')}</div>
-        ${d.rationale ? `<div class="dtl-rationale"><strong style="color:var(--accent);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Rationale</strong><br>${esc(d.rationale)}</div>` : ''}
-        <div class="dtl-meta-row">
-          <div class="dtl-meta-item">
-            <div class="dtl-meta-label">Source</div>
-            <div class="dtl-meta-val">${esc(d.source_type || '—')}</div>
-          </div>
-          <div class="dtl-meta-item">
-            <div class="dtl-meta-label">Source ID</div>
-            <div class="decision-uuid">${esc(d.source_id || '—')}</div>
-          </div>
-          <div class="dtl-meta-item">
-            <div class="dtl-meta-label">Confidence</div>
-            <div class="decision-confidence">
-              <div class="confidence-bar"><div class="confidence-fill" style="width:${confPct}%;background:${confColor}"></div></div>
-              <span style="font-family:var(--font-mono);font-size:11px;color:${confColor}">${(d.confidence_score || 0).toFixed(2)}</span>
-            </div>
-          </div>
-          ${d.superseded_by ? `<div class="dtl-meta-item"><div class="dtl-meta-label">Superseded By</div><div class="decision-uuid">${esc(d.superseded_by)}</div></div>` : ''}
-          ${d.supersedes ? `<div class="dtl-meta-item"><div class="dtl-meta-label">Supersedes</div><div class="decision-uuid">${esc(d.supersedes)}</div></div>` : ''}
-        </div>
-        ${d.decided_by && d.decided_by.length ? `<div style="margin-bottom:8px"><div class="dtl-meta-label" style="margin-bottom:5px">Decided By</div><div class="decision-decided-by">${d.decided_by.map(p => `<span class="decided-by-chip">${esc(p)}</span>`).join('')}</div></div>` : ''}
-        ${d.related_decisions && d.related_decisions.length ? `<div style="margin-bottom:8px"><div class="dtl-meta-label" style="margin-bottom:5px">Related Decisions</div>${d.related_decisions.map(rd => `<div class="decision-uuid" style="margin-bottom:2px">${esc(rd)}</div>`).join('')}</div>` : ''}
-        ${d.tags && d.tags.length ? `<div class="decision-tags">${d.tags.map(t => `<span class="decision-tag">${esc(t)}</span>`).join('')}</div>` : ''}
-      </div>
-    </div>`;
-  });
-
-  h += '</div>';
-  container.innerHTML = h;
+// ── View switchers (exposed globally) ──
+function setDtlView(mode) {
+  dtlViewMode = mode;
+  dtlActiveFilter = null;
+  const container = document.getElementById('dp-decisions');
+  if (container && decisionsData.length) renderDecisions(container, decisionsData);
+}
+function setDtlFilter(cat) {
+  dtlActiveFilter = dtlActiveFilter === cat ? null : cat; // toggle
+  const container = document.getElementById('dp-decisions');
+  if (container && decisionsData.length) renderDecisions(container, decisionsData);
 }
 
 // ── Expose functions to global scope (needed for inline onclick in ES modules) ──
@@ -441,3 +573,5 @@ window.selectSprint = selectSprint;
 window.exportData = exportData;
 window.loadDecisions = loadDecisions;
 window.decisionsLoaded = false;
+window.setDtlView = setDtlView;
+window.setDtlFilter = setDtlFilter;
