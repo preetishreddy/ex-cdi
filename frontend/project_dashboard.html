@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EX-CDI — Project Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#040a18;--surface:rgba(8,18,40,0.88);--surface2:rgba(12,24,52,0.75);--border:rgba(56,140,220,0.15);--border-bright:rgba(56,180,255,0.3);--accent:#1e8fff;--accent2:#6c5ce7;--text:#e0ecf8;--muted:#4a6a8a;--secondary:#7a9cc6;--success:#00d48a;--warn:#f0a020;--danger:#ff4d6a;--sidebar-w:230px;--font-display:'Rajdhani',sans-serif;--font-body:'Source Sans 3',sans-serif;--font-mono:'JetBrains Mono',monospace}
+  body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+  .page-bg{position:fixed;inset:0;z-index:0;background:url('static/img/bg.jpg') center/cover no-repeat;background-color:var(--bg)}
+  .page-bg::before{content:'';position:absolute;inset:0;background:rgba(4,10,24,0.72)}
+  .page-bg::after{content:'';position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='52'%3E%3Cpath d='M30 0l26 15v30L30 60 4 45V15z' fill='none' stroke='rgba(56,140,220,0.04)' stroke-width='0.5'/%3E%3C/svg%3E");background-size:60px 52px}
+
+  .sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;backdrop-filter:blur(20px)}
+  .sidebar-logo{padding:20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+  .logo-icon{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#0060c0);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(30,143,255,0.25)}
+  .logo-icon svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+  .logo-text{font-family:var(--font-display);font-size:17px;font-weight:700}.logo-text span{color:var(--accent)}
+  .sidebar-section{padding:18px 14px 6px;font-family:var(--font-display);font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;margin:2px 8px;font-size:13px;color:var(--muted);text-decoration:none;transition:all .15s}
+  .nav-item:hover{background:var(--surface2);color:var(--text)}.nav-item.active{background:rgba(30,143,255,0.12);color:var(--accent);font-weight:600}
+  .nav-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .nav-icon svg{width:16px;height:16px;stroke:currentColor;fill:none}
+  .nav-badge{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600}
+  .sidebar-bottom{margin-top:auto;padding:14px;border-top:1px solid var(--border)}
+  .user-chip{display:flex;align-items:center;gap:10px}
+  .avatar-sm{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  .user-name{font-size:13px;font-weight:600}.user-role{font-size:11px;color:var(--success)}
+  .logout-btn{margin-left:auto;color:var(--muted);text-decoration:none;display:flex}.logout-btn:hover{color:var(--danger)}
+  .logout-btn svg{width:16px;height:16px;stroke:currentColor;fill:none}
+
+  .main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;position:relative;z-index:1}
+  .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;backdrop-filter:blur(20px)}
+  .page-title{font-family:var(--font-display);font-size:18px;font-weight:700}.page-sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .btn{padding:8px 14px;border-radius:7px;border:none;cursor:pointer;font-family:var(--font-display);font-size:12px;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:6px}
+  .btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),#0068d6);color:#fff;box-shadow:0 3px 14px rgba(30,143,255,0.25)}
+  .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+  .topbar-actions{display:flex;gap:10px}.content{padding:24px 28px;flex:1;overflow-y:auto}
+
+  .connect-banner{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:14px;backdrop-filter:blur(16px);animation:fadeUp .5s ease both;transition:border-color .4s}
+  .connect-banner.success{border-color:rgba(0,212,138,0.3)}
+  .connect-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:linear-gradient(135deg,#0052CC,#2684FF)}
+  .connect-icon svg{width:20px;height:20px;fill:#fff}.connect-info{flex:1}
+  .connect-title{font-family:var(--font-display);font-size:14px;font-weight:700}
+  .connect-detail{font-size:12px;color:var(--muted);margin-top:2px}
+  .connect-status{display:flex;align-items:center;gap:6px;font-family:var(--font-display);font-size:11px;font-weight:600}
+  .connect-status .dot{width:7px;height:7px;border-radius:50%}
+  .connect-steps{display:flex;gap:6px;margin-top:8px}
+  .step{height:3px;border-radius:3px;flex:1;background:var(--border);overflow:hidden}
+  .step-fill{height:100%;width:0%;border-radius:3px;background:var(--accent);transition:width .6s ease}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .timeline-wrap{display:none;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 28px 18px;margin-bottom:20px;backdrop-filter:blur(16px);animation:fadeUp .5s ease both}
+  .timeline-wrap.visible{display:block}
+  .timeline-label{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px}
+  .timeline{display:flex;align-items:center;position:relative;padding:0 10px}
+  .timeline::before{content:'';position:absolute;top:50%;left:30px;right:30px;height:3px;background:var(--border);transform:translateY(-50%);border-radius:3px}
+  .timeline-progress{position:absolute;top:50%;left:30px;height:3px;background:linear-gradient(90deg,var(--accent),var(--success));transform:translateY(-50%);border-radius:3px;transition:width .6s ease}
+  .tl-node{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:all .2s}
+  .tl-dot-wrap{width:40px;height:40px;border-radius:50%;background:var(--surface);border:3px solid var(--border);display:flex;align-items:center;justify-content:center;transition:all .25s}
+  .tl-dot-wrap svg{width:16px;height:16px;fill:none;stroke:var(--muted);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:stroke .2s}
+  .tl-node.completed .tl-dot-wrap{border-color:var(--success);background:rgba(0,212,138,0.08)}.tl-node.completed .tl-dot-wrap svg{stroke:var(--success)}
+  .tl-node.current .tl-dot-wrap{border-color:var(--accent);background:rgba(30,143,255,0.1);box-shadow:0 0 0 6px rgba(30,143,255,0.12)}.tl-node.current .tl-dot-wrap svg{stroke:var(--accent)}
+  .tl-node.active .tl-dot-wrap{border-color:var(--accent);background:rgba(30,143,255,0.15);box-shadow:0 0 0 8px rgba(30,143,255,0.1);transform:scale(1.1)}.tl-node.active .tl-dot-wrap svg{stroke:#fff}
+  .tl-node:hover:not(.active) .tl-dot-wrap{transform:scale(1.05);border-color:var(--border-bright)}
+  .tl-info{margin-top:10px;text-align:center}
+  .tl-sprint{font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--muted);transition:color .2s}
+  .tl-dates{font-size:10px;color:var(--muted);font-family:var(--font-mono);margin-top:2px;opacity:.7}
+  .tl-pts{font-size:10px;color:var(--muted);margin-top:3px}
+  .tl-node.active .tl-sprint{color:var(--accent)}.tl-node.completed .tl-sprint{color:var(--success)}
+  .tl-status-tag{margin-top:5px;font-family:var(--font-display);font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px}
+  .tl-status-tag.done{background:rgba(0,212,138,0.12);color:var(--success)}.tl-status-tag.active-tag{background:rgba(30,143,255,0.12);color:var(--accent)}.tl-status-tag.upcoming{background:rgba(74,106,138,0.15);color:var(--muted)}
+
+  .detail-panel{display:none;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;backdrop-filter:blur(16px);animation:fadeUp .4s ease both}
+  .detail-panel.visible{display:block}
+  .detail-header{padding:18px 24px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border)}
+  .detail-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(30,143,255,0.1);color:var(--accent)}
+  .detail-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .detail-title{font-family:var(--font-display);font-size:17px;font-weight:700}.detail-sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .detail-stats{margin-left:auto;display:flex;gap:16px}.detail-stat{text-align:center}
+  .detail-stat-val{font-family:var(--font-mono);font-size:18px;font-weight:700}.detail-stat-label{font-size:10px;color:var(--muted)}
+
+  .tabs-strip{display:flex;background:var(--surface2);border-bottom:1px solid var(--border);padding:0 20px}
+  .tab-item{padding:11px 14px;font-family:var(--font-display);font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;display:flex;align-items:center;gap:5px}
+  .tab-item svg{width:13px;height:13px;stroke:currentColor;fill:none}
+  .tab-item.active{color:var(--accent);border-bottom-color:var(--accent)}.tab-item:hover:not(.active){color:var(--text)}
+  .tab-content{padding:22px;display:none}.tab-content.active{display:block}
+
+  .ai-summary-box{background:linear-gradient(135deg,rgba(30,143,255,0.06),rgba(108,92,231,0.04));border:1px solid rgba(30,143,255,0.12);border-radius:12px;padding:18px;margin-bottom:16px}
+  .ai-label{display:flex;align-items:center;gap:7px;font-family:var(--font-display);font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+  .ai-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.5s infinite}
+  .ai-summary-text{font-size:13px;color:var(--secondary);line-height:1.7}.ai-summary-text strong{color:var(--text)}
+  .stat-mini-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+  .stat-mini{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+  .stat-mini-val{font-family:var(--font-mono);font-size:22px;font-weight:700}.stat-mini-label{font-size:11px;color:var(--muted);margin-top:3px}
+  .section-sub{font-family:var(--font-display);font-size:13px;font-weight:700;margin-bottom:10px}
+  .participants{display:flex;flex-wrap:wrap;gap:10px}
+  .participant{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px}
+  .part-avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+  .part-name{font-size:12px;font-weight:600}.part-role{font-size:10px;color:var(--muted)}
+  .outcome-list{display:flex;flex-direction:column;gap:10px}
+  .outcome-item{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px}
+  .outcome-icon-wrap{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .outcome-icon-wrap svg{width:14px;height:14px;fill:none}
+  .outcome-icon-wrap.action{background:rgba(0,212,138,0.1)}.outcome-icon-wrap.action svg{stroke:var(--success)}
+  .outcome-icon-wrap.blocker{background:rgba(255,77,106,0.1)}.outcome-icon-wrap.blocker svg{stroke:var(--danger)}
+  .outcome-icon-wrap.build{background:rgba(108,92,231,0.1)}.outcome-icon-wrap.build svg{stroke:var(--accent2)}
+  .outcome-text{font-size:13px;line-height:1.5}.outcome-text strong{color:var(--text)}
+  .outcome-owner{font-size:11px;color:var(--muted);margin-top:3px}
+  .outcome-badge{padding:2px 8px;border-radius:10px;font-family:var(--font-display);font-size:10px;font-weight:700;margin-left:8px}
+  .outcome-badge.action{background:rgba(0,212,138,0.12);color:var(--success)}.outcome-badge.blocker{background:rgba(255,77,106,0.12);color:var(--danger)}
+  .decisions-table{width:100%;border-collapse:collapse;font-size:13px}
+  .decisions-table th{text-align:left;font-family:var(--font-display);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;border-bottom:1px solid var(--border)}
+  .decisions-table td{padding:12px;border-bottom:1px solid var(--border);vertical-align:top}
+  .decisions-table tr:last-child td{border-bottom:none}.decisions-table tr:hover td{background:var(--surface2)}
+  .status-pill{padding:3px 10px;border-radius:20px;font-family:var(--font-display);font-size:10px;font-weight:700}
+  .status-pill.done{background:rgba(0,212,138,0.12);color:var(--success)}.status-pill.progress{background:rgba(30,143,255,0.12);color:var(--accent)}
+  .status-pill.blocked{background:rgba(255,77,106,0.12);color:var(--danger)}.status-pill.review{background:rgba(240,160,32,0.12);color:var(--warn)}
+
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal-head{font-family:var(--font-display);font-size:10px;font-weight:600;color:var(--muted);text-align:center;padding:6px 0;text-transform:uppercase}
+  .cal-day{position:relative;text-align:center;padding:10px 4px;font-family:var(--font-mono);font-size:12px;color:var(--muted);border-radius:8px;border:1px solid transparent;transition:all .15s;cursor:default}
+  .cal-day.in-sprint{color:var(--secondary);background:var(--surface2);border-color:var(--border)}
+  .cal-day.today{color:var(--accent);border-color:var(--accent);font-weight:700}
+  .cal-day.has-meeting{cursor:pointer;color:var(--text)}
+  .cal-day.has-meeting::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--accent)}
+  .cal-day.has-meeting.type-retro::after{background:var(--warn)}.cal-day.has-meeting.type-standup::after{background:var(--success)}.cal-day.has-meeting.type-review::after{background:var(--accent2)}
+  .cal-day.has-meeting:hover{border-color:var(--border-bright);background:rgba(30,143,255,0.08);transform:translateY(-1px)}
+  .cal-tooltip{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:260px;background:var(--surface);border:1px solid var(--border-bright);border-radius:10px;padding:14px;z-index:200;box-shadow:0 8px 30px rgba(0,0,0,0.5);pointer-events:none}
+  .cal-day:hover .cal-tooltip{display:block}
+  .cal-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--border-bright)}
+  .tt-type{font-family:var(--font-display);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+  .tt-dot{width:6px;height:6px;border-radius:50%}
+  .tt-name{font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px}
+  .tt-project{font-size:11px;color:var(--muted);margin-bottom:8px}
+  .tt-summary{font-size:12px;color:var(--secondary);line-height:1.55;border-top:1px solid var(--border);padding-top:8px}
+  .cal-legend{display:flex;gap:14px;margin-top:12px;flex-wrap:wrap}.cal-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}.cal-legend-dot{width:7px;height:7px;border-radius:50%}
+  .cal-month{font-family:var(--font-display);font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .cal-month svg{width:16px;height:16px;stroke:var(--accent);fill:none}
+
+  @media(max-width:900px){.sidebar{display:none}.main{margin-left:0}.timeline{flex-wrap:wrap;gap:10px}.timeline::before,.timeline-progress{display:none}.detail-header{flex-wrap:wrap}.detail-stats{margin-left:0;margin-top:10px}.stat-mini-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="page-bg"></div>
+<nav class="sidebar">
+  <div class="sidebar-logo"><div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><div class="logo-text">EX-<span>CDI</span></div></div>
+  <div class="sidebar-section">Workspace</div>
+  <a class="nav-item" href="#"><div class="nav-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>Dashboard</a>
+  <a class="nav-item active" href="#"><div class="nav-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>Discussions<span class="nav-badge" id="navBadge">—</span></a>
+  <a class="nav-item" href="#"><div class="nav-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>Tasks</a>
+  <a class="nav-item" href="#"><div class="nav-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>Documents</a>
+  <div class="sidebar-section">Integrations</div>
+  <a class="nav-item" href="#"><div class="nav-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>Jira</a>
+  <a class="nav-item" href="#"><div class="nav-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg></div>Confluence</a>
+  <div class="sidebar-bottom"><div class="user-chip"><div class="avatar-sm" id="userAvatar">—</div><div><div class="user-name" id="sidebarUserName">Loading...</div><div class="user-role">Employee</div></div><a href="login.html" class="logout-btn" onclick="sessionStorage.clear()"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a></div></div>
+</nav>
+<div class="main">
+  <div class="topbar"><div><div class="page-title">Project Dashboard</div><div class="page-sub" id="topbarSub">Connecting to workspace...</div></div><div class="topbar-actions"><button class="btn btn-ghost" onclick="exportData()"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button><button class="btn btn-primary"><svg viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Discussion</button></div></div>
+  <div class="content">
+    <div class="connect-banner" id="connectBanner">
+      <div class="connect-icon"><svg viewBox="0 0 24 24"><path d="M11.53 2c0 2.4 1.97 4.35 4.35 4.35h1.78v1.7c0 2.4 1.94 4.34 4.34 4.35V2.84a.84.84 0 00-.84-.84H11.53zM6.77 6.8a4.36 4.36 0 004.34 4.34h1.8v1.72a4.36 4.36 0 004.34 4.34V7.63a.84.84 0 00-.83-.83H6.77zM2 11.6a4.35 4.35 0 004.35 4.35h1.78v1.71c0 2.4 1.94 4.34 4.34 4.34v-9.57a.84.84 0 00-.84-.84H2z"/></svg></div>
+      <div class="connect-info"><div class="connect-title" id="connectTitle">Authenticating with Jira...</div><div class="connect-detail" id="connectDetail">Using workspace credentials</div><div class="connect-steps"><div class="step"><div class="step-fill" id="step1"></div></div><div class="step"><div class="step-fill" id="step2"></div></div><div class="step"><div class="step-fill" id="step3"></div></div></div></div>
+      <div class="connect-status" id="connectStatus"><div class="dot" style="background:var(--warn);animation:pulse 1.5s infinite"></div><span>Connecting</span></div>
+    </div>
+    <div class="timeline-wrap" id="timelineWrap"><div class="timeline-label">Project Timeline — ONBOARD</div><div class="timeline" id="timeline"></div></div>
+    <div class="detail-panel" id="detailPanel"></div>
+  </div>
+</div>
+<script>
+const SPRINTS=[
+  {id:'s1',name:'Sprint 1',status:'completed',dates:['2026-02-03','2026-02-14'],
+    issues:[
+      {issue_key:'ONBOARD-10',issue_type:'Story',summary:'Project scaffolding & CI/CD pipeline',status:'Done',priority:'High',assignee:'Jordan Rivera',reporter:'Sarah Mitchell',created_date:'2026-02-03T00:00:00Z',updated_date:'2026-02-07T00:00:00Z',resolved_date:'2026-02-07T00:00:00Z',labels:'devops;infrastructure',epic_link:'ONBOARD-1',story_points:5,comments:'[2026-02-04 10:00 - Jordan Rivera] Initialized monorepo. Docker Compose for local dev.\n[2026-02-07 14:00 - Jordan Rivera] GitHub Actions CI pipeline live.'},
+      {issue_key:'ONBOARD-11',issue_type:'Task',summary:'Design system & component library',status:'Done',priority:'Medium',assignee:'Lisa Park',reporter:'Alex Kumar',created_date:'2026-02-03T00:00:00Z',updated_date:'2026-02-10T00:00:00Z',resolved_date:'2026-02-10T00:00:00Z',labels:'frontend;design',epic_link:'ONBOARD-1',story_points:3,comments:'[2026-02-05 09:00 - Lisa Park] Tailwind + Storybook done.\n[2026-02-10 11:00 - Lisa Park] 12 base components published.'},
+      {issue_key:'ONBOARD-12',issue_type:'Story',summary:'User authentication & session management',status:'Done',priority:'Critical',assignee:'Dave Rossi',reporter:'Sarah Mitchell',created_date:'2026-02-04T00:00:00Z',updated_date:'2026-02-12T00:00:00Z',resolved_date:'2026-02-12T00:00:00Z',labels:'backend;auth;security',epic_link:'ONBOARD-1',story_points:8,comments:'[2026-02-06 10:00 - Dave Rossi] JWT auth flow implemented.\n[2026-02-12 09:00 - Sarah Mitchell] Security review passed.'},
+      {issue_key:'ONBOARD-13',issue_type:'Task',summary:'Database schema design & seed data',status:'Done',priority:'High',assignee:'Priya Lakshmi',reporter:'Dave Rossi',created_date:'2026-02-03T00:00:00Z',updated_date:'2026-02-08T00:00:00Z',resolved_date:'2026-02-08T00:00:00Z',labels:'database;backend',epic_link:'ONBOARD-1',story_points:5,comments:'[2026-02-05 15:00 - Priya Lakshmi] ERD finalized. 14 tables.\n[2026-02-08 10:00 - Priya Lakshmi] Alembic migrations + seed script.'}
+    ],
+    meetings:[{date:'2026-02-03',type:'planning',name:'Sprint 1 Planning',project:'ONBOARD',time:'09:00–10:30',summary:'Kicked off project. Defined architecture, assigned stories. 21 points committed.'},{date:'2026-02-07',type:'review',name:'Mid-Sprint Check',project:'ONBOARD',time:'14:00–14:30',summary:'CI/CD live. Auth in progress. Schema on track.'},{date:'2026-02-14',type:'retro',name:'Sprint 1 Retro',project:'ONBOARD',time:'10:00–11:00',summary:'All 21 points delivered. Velocity baseline set. Improvement: faster PR reviews.'}],
+    aiSummary:'Sprint 1 established the project foundation. All <strong>21 story points delivered</strong>. CI/CD pipeline operational. JWT auth with SSO deployed. Database schema finalized (14 tables). Design system published with 12 components and dark theme.'},
+  {id:'s2',name:'Sprint 2',status:'current',dates:['2026-02-17','2026-02-28'],
+    issues:[
+      {issue_key:'ONBOARD-30',issue_type:'Task',summary:'Performance optimization for dashboard',status:'Done',priority:'Medium',assignee:'Lisa Park',reporter:'Dave Rossi',created_date:'2026-01-29T00:00:00Z',updated_date:'2026-01-30T00:00:00Z',resolved_date:'2026-01-30T00:00:00Z',labels:'frontend;performance',epic_link:'ONBOARD-10',story_points:3,comments:'[2026-01-30 09:30 - Lisa Park] React.memo to prevent re-renders.\n[2026-01-30 16:30 - Dave Rossi] Fixed CONN_MAX_AGE.'},
+      {issue_key:'ONBOARD-31',issue_type:'Story',summary:'Real-time inventory alert system',status:'In Progress',priority:'High',assignee:'Alex Kumar',reporter:'Sarah Mitchell',created_date:'2026-02-20T00:00:00Z',updated_date:'2026-02-25T00:00:00Z',resolved_date:null,labels:'backend;websocket',epic_link:'ONBOARD-10',story_points:5,comments:'[2026-02-22 10:00 - Alex Kumar] WebSocket server live.\n[2026-02-25 09:00 - Sarah Mitchell] Add retry logic for Slack.'},
+      {issue_key:'ONBOARD-32',issue_type:'Bug',summary:'Data warehouse migration — schema mismatch',status:'Blocked',priority:'Critical',assignee:'Jordan Rivera',reporter:'Priya Lakshmi',created_date:'2026-02-18T00:00:00Z',updated_date:'2026-02-26T00:00:00Z',resolved_date:null,labels:'database;migration;blocker',epic_link:'ONBOARD-10',story_points:8,comments:'[2026-02-19 14:00 - Jordan Rivera] 3 date format variations.\n[2026-02-26 16:00 - Jordan Rivera] Transform handles 2/3 formats.'},
+      {issue_key:'ONBOARD-33',issue_type:'Task',summary:'Sales trend visualization component',status:'In Review',priority:'High',assignee:'Lisa Park',reporter:'Alex Kumar',created_date:'2026-02-21T00:00:00Z',updated_date:'2026-02-26T00:00:00Z',resolved_date:null,labels:'frontend;charts',epic_link:'ONBOARD-10',story_points:5,comments:'[2026-02-23 09:00 - Lisa Park] Chart with zoom & pan.\n[2026-02-26 11:00 - Alex Kumar] Tooltip needs currency formatting.'},
+      {issue_key:'ONBOARD-34',issue_type:'Story',summary:'Prediction API for churn model',status:'Done',priority:'High',assignee:'Priya Lakshmi',reporter:'Sarah Mitchell',created_date:'2026-02-20T00:00:00Z',updated_date:'2026-02-27T00:00:00Z',resolved_date:'2026-02-27T00:00:00Z',labels:'backend;ml;api',epic_link:'ONBOARD-10',story_points:5,comments:'[2026-02-22 10:00 - Priya Lakshmi] AUC: 0.87.\n[2026-02-27 09:00 - Sarah Mitchell] Approved for merge.'}
+    ],
+    meetings:[{date:'2026-02-17',type:'planning',name:'Sprint 2 Planning',project:'ONBOARD',time:'09:00–10:30',summary:'26 story points committed. Dashboard perf and alerts prioritized. Mock data for ML.'},{date:'2026-02-18',type:'standup',name:'Daily Standup',project:'ONBOARD',time:'09:00–09:15',summary:'Jordan flagged schema mismatch. Priya confirmed mock data workaround.'},{date:'2026-02-21',type:'review',name:'Mid-Sprint Review',project:'ONBOARD',time:'14:00–15:00',summary:'ONBOARD-30 nearly done. WebSocket live. ONBOARD-32 still blocked.'},{date:'2026-02-25',type:'standup',name:'Daily Standup',project:'ONBOARD',time:'09:00–09:15',summary:'Lisa integrated date picker. Alex testing Slack retry. Prediction API approved.'},{date:'2026-02-27',type:'review',name:'Sprint 2 Demo',project:'ONBOARD',time:'14:00–15:30',summary:'Demoed perf gains, prediction API, sales chart. Blocker carries to Sprint 3.'},{date:'2026-02-28',type:'retro',name:'Sprint 2 Retro',project:'ONBOARD',time:'10:00–11:00',summary:'21 of 26 pts delivered. Improvement: earlier blocker escalation.'}],
+    aiSummary:'<strong>Sprint 2</strong> has 5 issues totaling <strong>26 story points</strong>. <strong>2 completed</strong> (8 pts), 2 in progress, 1 blocked. Blocker: <strong>data warehouse schema mismatch</strong> — mock data approved. Perf optimization resolved. Prediction API live (AUC 0.87). Sales visualization in review.'},
+  {id:'s3',name:'Sprint 3',status:'upcoming',dates:['2026-03-02','2026-03-13'],
+    issues:[
+      {issue_key:'ONBOARD-40',issue_type:'Story',summary:'Customer segmentation dashboard',status:'To Do',priority:'High',assignee:'Alex Kumar',reporter:'Sarah Mitchell',created_date:'2026-02-28T00:00:00Z',updated_date:'2026-02-28T00:00:00Z',resolved_date:null,labels:'frontend;dashboard',epic_link:'ONBOARD-10',story_points:8,comments:''},
+      {issue_key:'ONBOARD-41',issue_type:'Task',summary:'Complete data warehouse migration',status:'To Do',priority:'Critical',assignee:'Jordan Rivera',reporter:'Priya Lakshmi',created_date:'2026-02-28T00:00:00Z',updated_date:'2026-02-28T00:00:00Z',resolved_date:null,labels:'database;migration',epic_link:'ONBOARD-10',story_points:8,comments:''},
+      {issue_key:'ONBOARD-42',issue_type:'Story',summary:'Email notification system',status:'To Do',priority:'Medium',assignee:'Dave Rossi',reporter:'Sarah Mitchell',created_date:'2026-02-28T00:00:00Z',updated_date:'2026-02-28T00:00:00Z',resolved_date:null,labels:'backend;notifications',epic_link:'ONBOARD-10',story_points:5,comments:''}
+    ],meetings:[],aiSummary:'<strong>Sprint 3</strong> planned with 3 issues, <strong>21 story points</strong>. Focus: customer segmentation dashboard, completing warehouse migration from Sprint 2, and email notifications.'},
+  {id:'s4',name:'Sprint 4',status:'upcoming',dates:['2026-03-16','2026-03-27'],issues:[],meetings:[],aiSummary:'<strong>Sprint 4</strong> backlog not yet groomed. Expected: production hardening, E2E testing, client demo prep.'}
+];
+
+let activeSprint=null;
+const userEmail=sessionStorage.getItem('userEmail')||'user@company.atlassian.net';
+const jiraDomain=sessionStorage.getItem('jiraDomain')||'company.atlassian.net';
+const userName=userEmail.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
+document.getElementById('sidebarUserName').textContent=userName;
+document.getElementById('userAvatar').textContent=userName.split(' ').map(w=>w[0]).join('').substring(0,2);
+document.getElementById('connectDetail').textContent=`${userEmail} → ${jiraDomain}`;
+
+setTimeout(()=>{document.getElementById('step1').style.width='100%';document.getElementById('connectTitle').textContent='Authenticating...'},400);
+setTimeout(()=>{document.getElementById('step2').style.width='100%';document.getElementById('connectTitle').textContent='Fetching sprints...'},1200);
+setTimeout(()=>{document.getElementById('step3').style.width='100%';document.getElementById('connectTitle').textContent='Loading project data...'},2000);
+setTimeout(()=>{
+  document.getElementById('connectBanner').classList.add('success');
+  document.getElementById('connectTitle').textContent='Connected to Jira';
+  document.getElementById('connectDetail').textContent=`ONBOARD · ${SPRINTS.length} sprints · ${SPRINTS.reduce((s,sp)=>s+sp.issues.length,0)} issues`;
+  document.getElementById('connectStatus').innerHTML='<div class="dot" style="background:var(--success);animation:pulse 1.5s infinite"></div><span style="color:var(--success)">Connected</span>';
+  document.getElementById('topbarSub').textContent=`ONBOARD · ${SPRINTS.length} sprints`;
+  document.getElementById('navBadge').textContent=SPRINTS.reduce((s,sp)=>s+sp.issues.length,0);
+  buildTimeline();selectSprint((SPRINTS.find(s=>s.status==='current')||SPRINTS[0]).id);
+},2800);
+
+function buildTimeline(){
+  const el=document.getElementById('timeline');document.getElementById('timelineWrap').classList.add('visible');
+  const ci=SPRINTS.findIndex(s=>s.status==='current');
+  const pct=ci>=0?((ci+.5)/SPRINTS.length)*100:(SPRINTS.filter(s=>s.status==='completed').length/SPRINTS.length)*100;
+  let h=`<div class="timeline-progress" style="width:${pct}%"></div>`;
+  SPRINTS.forEach(sp=>{
+    const pts=sp.issues.reduce((s,i)=>s+(i.story_points||0),0);
+    const dp=sp.issues.filter(i=>i.status==='Done').reduce((s,i)=>s+(i.story_points||0),0);
+    const c=sp.status==='completed'?'completed':sp.status==='current'?'current':'future';
+    const t=sp.status==='completed'?'done':sp.status==='current'?'active-tag':'upcoming';
+    const tx=sp.status==='completed'?'Done':sp.status==='current'?'Active':'Upcoming';
+    const ic=sp.status==='completed'?'<polyline points="20 6 9 17 4 12"/>':sp.status==='current'?'<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>':'<circle cx="12" cy="12" r="10"/>';
+    h+=`<div class="tl-node ${c}" data-id="${sp.id}" onclick="selectSprint('${sp.id}')"><div class="tl-dot-wrap"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic}</svg></div><div class="tl-info"><div class="tl-sprint">${sp.name}</div><div class="tl-dates">${fmtR(sp.dates[0],sp.dates[1])}</div><div class="tl-pts">${pts>0?dp+'/'+pts+' pts':'TBD'}</div><div class="tl-status-tag ${t}">${tx}</div></div></div>`;
+  });el.innerHTML=h;
+}
+
+function selectSprint(id){
+  if(activeSprint===id)return;activeSprint=id;
+  document.querySelectorAll('.tl-node').forEach(n=>n.classList.remove('active'));
+  document.querySelector(`.tl-node[data-id="${id}"]`)?.classList.add('active');
+  const sp=SPRINTS.find(s=>s.id===id);if(!sp)return;
+  const p=document.getElementById('detailPanel'),is=sp.issues,dn=is.filter(i=>i.status==='Done'),bl=is.filter(i=>i.status==='Blocked');
+  const tp=is.reduce((s,i)=>s+(i.story_points||0),0),dpn=dn.reduce((s,i)=>s+(i.story_points||0),0);
+  const as=[...new Set(is.map(i=>i.assignee))];
+  p.innerHTML=`<div class="detail-header"><div class="detail-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="detail-title">${sp.name} — ONBOARD</div><div class="detail-sub">${fmtR(sp.dates[0],sp.dates[1])} · ${is.length} issues · ${as.length} members</div></div><div class="detail-stats"><div class="detail-stat"><div class="detail-stat-val" style="color:var(--accent)">${tp}</div><div class="detail-stat-label">Points</div></div><div class="detail-stat"><div class="detail-stat-val" style="color:var(--success)">${dpn}</div><div class="detail-stat-label">Completed</div></div><div class="detail-stat"><div class="detail-stat-val" style="color:var(--danger)">${bl.length}</div><div class="detail-stat-label">Blocked</div></div></div></div>
+  <div class="tabs-strip"><div class="tab-item active" onclick="sTab('dp','summary',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>AI Summary</div><div class="tab-item" onclick="sTab('dp','meetings',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Meetings</div><div class="tab-item" onclick="sTab('dp','outcomes',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Outcomes</div><div class="tab-item" onclick="sTab('dp','issues',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>All Issues</div></div>
+  <div class="tab-content active" id="dp-summary"><div class="ai-summary-box"><div class="ai-label"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg><span class="ai-dot"></span>AI Sprint Summary</div><div class="ai-summary-text">${sp.aiSummary}</div></div><div class="stat-mini-grid"><div class="stat-mini"><div class="stat-mini-val" style="color:var(--accent)">${tp}</div><div class="stat-mini-label">Story Points</div></div><div class="stat-mini"><div class="stat-mini-val" style="color:var(--warn)">${bl.length}</div><div class="stat-mini-label">Blockers</div></div><div class="stat-mini"><div class="stat-mini-val" style="color:var(--success)">${dn.length}/${is.length}</div><div class="stat-mini-label">Completed</div></div></div>${as.length?`<div class="section-sub">Team</div><div class="participants">${as.map(n=>`<div class="participant"><div class="part-avatar" style="background:${gr(n)}">${ini(n)}</div><div><div class="part-name">${n}</div><div class="part-role">${rl(n,is)}</div></div></div>`).join('')}</div>`:'<p style="color:var(--muted);font-size:13px">No team assigned yet.</p>'}</div>
+  <div class="tab-content" id="dp-meetings">${bCal(sp)}</div>
+  <div class="tab-content" id="dp-outcomes">${is.length?`<div class="outcome-list">${is.map(i=>oIt(i)).join('')}</div>`:'<p style="color:var(--muted);font-size:13px">No issues yet.</p>'}</div>
+  <div class="tab-content" id="dp-issues">${is.length?`<table class="decisions-table"><thead><tr><th>Issue</th><th>Summary</th><th>Assignee</th><th>Pts</th><th>Status</th></tr></thead><tbody>${is.map(i=>`<tr><td style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">${i.issue_key}</td><td>${i.summary}</td><td>${i.assignee}</td><td style="text-align:center">${i.story_points}</td><td><span class="status-pill ${pCl(i.status)}">${i.status}</span></td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--muted);font-size:13px">Backlog not groomed.</p>'}</div>`;
+  p.classList.remove('visible');p.offsetHeight;p.classList.add('visible');p.style.animation='none';p.offsetHeight;p.style.animation='';
+}
+
+function bCal(sp){
+  if(!sp.meetings.length)return'<p style="color:var(--muted);font-size:13px;padding:4px">No meetings scheduled.</p>';
+  const st=new Date(sp.dates[0]),en=new Date(sp.dates[1]),yr=st.getFullYear(),mo=st.getMonth();
+  const fd=new Date(yr,mo,1).getDay(),dm=new Date(yr,mo+1,0).getDate();
+  const mm={};sp.meetings.forEach(m=>{mm[m.date]=m});const td=new Date().toISOString().split('T')[0];
+  let h=`<div class="cal-month"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${MO[mo]} ${yr}</div><div class="cal-grid">`;
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d=>{h+=`<div class="cal-head">${d}</div>`});
+  for(let i=0;i<fd;i++)h+='<div class="cal-day"></div>';
+  for(let d=1;d<=dm;d++){
+    const ds=`${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`,dO=new Date(yr,mo,d);
+    const iS=dO>=st&&dO<=en,iT=ds===td,m=mm[ds];let c='cal-day';if(iS)c+=' in-sprint';if(iT)c+=' today';if(m)c+=` has-meeting type-${m.type}`;
+    let tt='';if(m){const tc=m.type==='standup'?'var(--success)':m.type==='retro'?'var(--warn)':m.type==='review'?'var(--accent2)':'var(--accent)';
+    tt=`<div class="cal-tooltip"><div class="tt-type" style="color:${tc}"><div class="tt-dot" style="background:${tc}"></div>${m.type.charAt(0).toUpperCase()+m.type.slice(1)}</div><div class="tt-name">${m.name}</div><div class="tt-project">${m.project} · ${m.time}</div><div class="tt-summary">${m.summary}</div></div>`}
+    h+=`<div class="${c}">${d}${tt}</div>`}
+  h+='</div><div class="cal-legend"><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent)"></div>Planning</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--success)"></div>Standup</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent2)"></div>Review</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--warn)"></div>Retro</div></div>';
+  return h;
+}
+
+function sTab(px,tab,btn){const p=document.getElementById('detailPanel');p.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));p.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));btn.classList.add('active');document.getElementById(`${px}-${tab}`)?.classList.add('active')}
+function oIt(i){const t=i.status==='Blocked'?'blocker':i.status==='Done'?'action':'build';const bt=i.status==='Blocked'?'Blocker':i.status==='Done'?'Completed':i.status==='To Do'?'To Do':'In Progress';const bc=i.status==='Blocked'?'blocker':'action';const ic=t==='blocker'?'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>':t==='action'?'<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>':'<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>';return`<div class="outcome-item"><div class="outcome-icon-wrap ${t}"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic}</svg></div><div><div class="outcome-text"><strong>${i.assignee}</strong> — ${i.summary}<span class="outcome-badge ${bc}">${bt}</span></div><div class="outcome-owner">${i.issue_key} · ${i.story_points} pts · ${i.priority}</div></div></div>`}
+function pCl(s){return s==='Done'?'done':s==='Blocked'?'blocked':s==='In Review'?'review':'progress'}
+const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtR(s,e){const a=new Date(s),b=new Date(e);return`${MO[a.getMonth()]} ${a.getDate()} – ${MO[b.getMonth()]} ${b.getDate()}`}
+function ini(n){return n.split(' ').map(w=>w[0]).join('').substring(0,2)}
+function gr(n){const g=['linear-gradient(135deg,#1e8fff,#6c5ce7)','linear-gradient(135deg,#f5a623,#ff6b6b)','linear-gradient(135deg,#f5a623,#ff8c00)','linear-gradient(135deg,#00d48a,#1e8fff)','linear-gradient(135deg,#e84393,#fd79a8)','linear-gradient(135deg,#6c5ce7,#a29bfe)'];let h=0;for(let i=0;i<n.length;i++)h=n.charCodeAt(i)+((h<<5)-h);return g[Math.abs(h)%g.length]}
+function rl(n,is){const l=is.filter(i=>i.assignee===n).flatMap(i=>i.labels.split(';'));if(l.includes('frontend'))return'Frontend';if(l.includes('ml'))return'ML Engineer';if(l.includes('backend')||l.includes('auth'))return'Backend';if(l.includes('database')||l.includes('devops')||l.includes('infrastructure'))return'DevOps';return'Engineer'}
+function exportData(){const d=SPRINTS.find(s=>s.id===activeSprint);if(!d)return;const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=d.name.replace(/\s/g,'-').toLowerCase()+'-export.json';a.click();URL.revokeObjectURL(u)}
+</script>
+</body>
+</html>
