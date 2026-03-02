@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EX-CDI — Project Dashboard</title>
+<title>EX-CDI — Project Overview</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="static/css/project_dashboard.css">
 </head>
@@ -26,15 +26,18 @@
 </nav>
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 <div class="main">
-  <div class="topbar"><div><div class="page-title">Project Dashboard</div><div class="page-sub" id="topbarSub">Connecting to workspace...</div></div><div class="topbar-actions"><button class="btn btn-ghost" onclick="exportData()"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button><button class="btn btn-primary"><svg viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Discussion</button></div></div>
+  <div class="topbar"><div><div class="page-title">Project Overview</div><div class="page-sub" id="topbarSub">Loading workspace...</div></div><div class="topbar-actions"><button class="btn btn-ghost" onclick="exportData()"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button><button class="btn btn-primary"><svg viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Discussion</button></div></div>
   <div class="content">
-    <div class="connect-banner" id="connectBanner">
-      <div class="connect-icon"><svg viewBox="0 0 24 24"><path d="M11.53 2c0 2.4 1.97 4.35 4.35 4.35h1.78v1.7c0 2.4 1.94 4.34 4.34 4.35V2.84a.84.84 0 00-.84-.84H11.53zM6.77 6.8a4.36 4.36 0 004.34 4.34h1.8v1.72a4.36 4.36 0 004.34 4.34V7.63a.84.84 0 00-.83-.83H6.77zM2 11.6a4.35 4.35 0 004.35 4.35h1.78v1.71c0 2.4 1.94 4.34 4.34 4.34v-9.57a.84.84 0 00-.84-.84H2z"/></svg></div>
-      <div class="connect-info"><div class="connect-title" id="connectTitle">Authenticating with Jira...</div><div class="connect-detail" id="connectDetail">Using workspace credentials</div><div class="connect-steps"><div class="step"><div class="step-fill" id="step1"></div></div><div class="step"><div class="step-fill" id="step2"></div></div><div class="step"><div class="step-fill" id="step3"></div></div></div></div>
-      <div class="connect-status" id="connectStatus"><div class="dot" style="background:var(--warn);animation:pulse 1.5s infinite"></div><span>Connecting</span></div>
-    </div>
     <div class="timeline-wrap" id="timelineWrap"><div class="timeline-label">Project Timeline — ONBOARD</div><div class="timeline" id="timeline"></div></div>
     <div class="detail-panel" id="detailPanel"></div>
+  </div>
+</div>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-content">
+    <div class="loading-logo"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+    <div class="loading-title">EX-<span>CDI</span></div>
+    <div class="loading-bar"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+    <div class="loading-text" id="loadingText">Initializing...</div>
   </div>
 </div>
 <div class="meeting-popup-overlay" id="meetingPopupOverlay">

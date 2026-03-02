@@ -1,5 +1,5 @@
 /* ============================================================
-   EX-CDI — Project Dashboard JavaScript
+   EX-CDI — Project Overview JavaScript
    ============================================================ */
 
 // ── Sprint Data (fetched from API) ───────────────────────────
@@ -20,7 +20,6 @@ const userName = userEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, 
 
 document.getElementById('sidebarUserName').textContent = userName;
 document.getElementById('userAvatar').textContent = userName.split(' ').map(w => w[0]).join('').substring(0, 2);
-document.getElementById('connectDetail').textContent = `${userEmail} → ${jiraDomain}`;
 
 // ── Fetch Sprints from API ───────────────────────────────────
 async function fetchSprints() {
@@ -55,40 +54,42 @@ async function fetchSprints() {
   return SPRINTS;
 }
 
-// ── Connection Animation ─────────────────────────────────────
+// ── Loading Animation & Init ─────────────────────────────────
 (async function initDashboard() {
-  setTimeout(() => {
-    document.getElementById('step1').style.width = '100%';
-    document.getElementById('connectTitle').textContent = 'Authenticating...';
-  }, 400);
+  const overlay = document.getElementById('loadingOverlay');
+  const barFill = document.getElementById('loadingBarFill');
+  const loadText = document.getElementById('loadingText');
 
-  setTimeout(() => {
-    document.getElementById('step2').style.width = '100%';
-    document.getElementById('connectTitle').textContent = 'Fetching sprints...';
-  }, 1200);
+  // Step 1 – animate bar
+  setTimeout(() => { barFill.style.width = '30%'; loadText.textContent = 'Connecting to workspace...'; }, 300);
+  setTimeout(() => { barFill.style.width = '55%'; loadText.textContent = 'Fetching sprints...'; }, 900);
 
+  // Step 2 – fetch data while animation runs
   try {
     await fetchSprints();
   } catch (e) {
     console.error('Failed to fetch sprints from API:', e);
   }
 
-  setTimeout(() => {
-    document.getElementById('step3').style.width = '100%';
-    document.getElementById('connectTitle').textContent = 'Loading project data...';
-  }, 2000);
+  // Step 3 – finish bar
+  setTimeout(() => { barFill.style.width = '85%'; loadText.textContent = 'Building dashboard...'; }, 1600);
 
   setTimeout(() => {
-    document.getElementById('connectBanner').classList.add('success');
-    document.getElementById('connectTitle').textContent = 'Connected to Jira';
-    document.getElementById('connectDetail').textContent = `ONBOARD · ${SPRINTS.length} sprints`;
-    document.getElementById('connectStatus').innerHTML = '<div class="dot" style="background:var(--success);animation:pulse 1.5s infinite"></div><span style="color:var(--success)">Connected</span>';
+    barFill.style.width = '100%';
+    loadText.textContent = 'Ready';
+  }, 2200);
+
+  // Step 4 – hide overlay & render
+  setTimeout(() => {
+    overlay.classList.add('hidden');
     document.getElementById('topbarSub').textContent = `ONBOARD · ${SPRINTS.length} sprints`;
     document.getElementById('navBadge').textContent = SPRINTS.length;
     buildTimeline();
     if (SPRINTS.length) {
       selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
     }
+    // Remove overlay from DOM after transition
+    setTimeout(() => overlay.remove(), 600);
   }, 2800);
 })();
 
