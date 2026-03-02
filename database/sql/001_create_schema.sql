@@ -279,3 +279,60 @@ ORDER BY event_date DESC;
 -- ============================================
 -- Run: \dt to list all tables
 -- Run: \dv to list all views
+
+-- Now create the full schema
+CREATE TABLE decisions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    
+    -- Core decision info
+    title VARCHAR(500) NOT NULL,
+    description TEXT,
+    decision_date DATE NOT NULL,
+    
+    -- Context and reasoning (THE "WHY")
+    rationale TEXT,
+    alternatives_considered TEXT,
+    impact TEXT,
+    
+    -- People
+    decided_by VARCHAR(255)[],
+    
+    -- Source tracking
+    source_type VARCHAR(50) NOT NULL,
+    source_id UUID,
+    source_title VARCHAR(500),
+    
+    -- Relationships
+    related_tickets VARCHAR(50)[],
+    related_decisions UUID[],
+    
+    -- Categorization
+    category VARCHAR(100),
+    tags TEXT[],
+    
+    -- Lifecycle
+    status VARCHAR(50) DEFAULT 'active',
+    superseded_by UUID REFERENCES decisions(id),
+    supersedes UUID REFERENCES decisions(id),
+    
+    -- Metadata
+    confidence_score FLOAT,
+    extraction_notes TEXT,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes
+CREATE INDEX idx_decisions_date ON decisions(decision_date);
+CREATE INDEX idx_decisions_source ON decisions(source_type, source_id);
+CREATE INDEX idx_decisions_status ON decisions(status);
+CREATE INDEX idx_decisions_category ON decisions(category);
+CREATE INDEX idx_decisions_tags ON decisions USING GIN(tags);
+CREATE INDEX idx_decisions_related_tickets ON decisions USING GIN(related_tickets);
+
+-- Trigger for updated_at
+CREATE TRIGGER update_decisions_updated_at 
+    BEFORE UPDATE ON decisions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

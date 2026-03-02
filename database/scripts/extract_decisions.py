@@ -12,7 +12,9 @@ Features:
 - DSPy-style Signatures and ChainOfThought
 - Deduplication based on title similarity
 - Links duplicates via related_decisions field
+- Detects superseded decisions (e.g., Material UI → Tailwind)
 - Refined prompts to exclude task completions
+- Extracts ALL fields: impact, rationale, alternatives, etc.
 
 Usage:
     python scripts/extract_decisions.py --all
@@ -33,7 +35,7 @@ import re
 import argparse
 from datetime import datetime
 from dataclasses import dataclass
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 from difflib import SequenceMatcher
 
 # Add the parent directory to path for Django
@@ -199,7 +201,7 @@ class ChainOfThought:
             "✅ THESE ARE DECISIONS (extract these):",
             "  - 'We decided to use React instead of Vue' → Choice between alternatives",
             "  - 'We chose JWT over session-based auth' → Choice with reasoning",
-            "  - 'We will switch from Material UI to Tailwind' → Change in direction",
+            "  - 'We will switch from Material UI to Tailwind' → Change in direction (SUPERSEDES previous)",
             "  - 'Managers will see all employees, not just direct reports' → Design choice",
             "  - 'We'll use PostgreSQL for the database' → Technology choice",
             "",
@@ -234,24 +236,29 @@ class ChainOfThought:
             "1. Read through the content carefully",
             "2. Look for statements where a CHOICE was made between alternatives",
             "3. For each choice, extract WHY it was made (the rationale)",
-            "4. SKIP any task completions, status updates, bug fixes, or action items",
-            "5. Categorize each decision (architecture/technology/process/design/infrastructure/security)",
+            "4. Identify the IMPACT of the decision (what does it affect?)",
+            "5. Check if this decision SUPERSEDES a previous decision (e.g., 'switch from X to Y')",
+            "6. SKIP any task completions, status updates, bug fixes, or action items",
+            "7. Categorize each decision (architecture/technology/process/design/infrastructure/security)",
             "",
             "=" * 50,
             "OUTPUT FORMAT:",
             "=" * 50,
             "",
-            "Return a JSON array of decisions. Each decision MUST have this structure:",
+            "Return a JSON array of decisions. Each decision MUST have ALL these fields:",
             """```json
 [
   {
     "title": "Short decision title - what was chosen (e.g., 'Use React for frontend')",
     "description": "Detailed description of the decision",
     "rationale": "WHY this was decided - the reasoning behind the choice",
-    "alternatives_considered": "Other options that were discussed or rejected",
+    "alternatives_considered": "Other options that were discussed or rejected (e.g., 'Vue, Angular')",
+    "impact": "What this decision affects (e.g., 'Frontend architecture, developer hiring, training')",
     "category": "architecture|technology|process|design|infrastructure|security",
     "decided_by": ["Person 1", "Person 2"],
     "related_tickets": ["ONBOARD-11"],
+    "supersedes_decision": "Previous decision this replaces, if any (e.g., 'Use Material UI') or null",
+    "tags": ["frontend", "framework"],
     "confidence": 0.9
   }
 ]
@@ -262,6 +269,8 @@ class ChainOfThought:
             "- Do NOT include task completions or status updates",
             "- Do NOT include action items or assignments",
             "- Do NOT include bug fixes or implementations",
+            "- ALWAYS include impact - what does this decision affect?",
+            "- Check for superseded decisions (e.g., 'switch from X to Y' supersedes 'use X')",
             "- If no decisions were found, return: []",
             "- Confidence should be 0.7-1.0 based on how clear the decision was",
             "",
@@ -292,23 +301,24 @@ class ChainOfThought:
 
 
 # ============================================
-# DEDUPLICATION LOGIC
+# DEDUPLICATION & SUPERSESSION LOGIC
 # ============================================
 
 class DecisionDeduplicator:
     """
-    Handles deduplication of decisions based on title similarity.
-    Links duplicates via related_decisions field.
+    Handles deduplication and supersession detection.
+    - Links duplicates via related_decisions field
+    - Detects superseded decisions (e.g., Material UI → Tailwind)
     """
     
     def __init__(self, similarity_threshold: float = 0.70):
         self.similarity_threshold = similarity_threshold
-        self.existing_decisions = []  # List of (id, title, source_type) tuples
+        self.existing_decisions = []  # List of (id, title, source_type, status) tuples
     
     def load_existing_decisions(self):
         """Load existing decisions from database."""
         self.existing_decisions = [
-            (str(d.id), d.title.lower().strip(), d.source_type)
+            (str(d.id), d.title.lower().strip(), d.source_type, d.status)
             for d in Decision.objects.all()
         ]
         print(f"  Loaded {len(self.existing_decisions)} existing decisions for dedup")
@@ -316,11 +326,10 @@ class DecisionDeduplicator:
     def normalize_title(self, title: str) -> str:
         """Normalize title for comparison."""
         title = title.lower().strip()
-        # Remove common prefixes
         prefixes = [
             'use ', 'adopt ', 'implement ', 'choose ', 'select ', 
             'switch to ', 'decided to ', 'decision to ', 'chose ',
-            'switched to ', 'selected ', 'adopted '
+            'switched to ', 'selected ', 'adopted ', 'switch from '
         ]
         for prefix in prefixes:
             if title.startswith(prefix):
@@ -337,21 +346,40 @@ class DecisionDeduplicator:
         """Find existing decisions similar to the new one."""
         duplicates = []
         
-        for existing_id, existing_title, source_type in self.existing_decisions:
+        for existing_id, existing_title, source_type, status in self.existing_decisions:
             similarity = self.calculate_similarity(new_title, existing_title)
             if similarity >= self.similarity_threshold:
                 duplicates.append(existing_id)
         
         return duplicates
     
-    def is_duplicate(self, new_title: str) -> tuple:
+    def is_duplicate(self, new_title: str) -> Tuple[bool, List[str]]:
         """Check if a decision is a duplicate."""
         duplicates = self.find_duplicates(new_title)
         return (len(duplicates) > 0, duplicates)
     
-    def add_decision(self, decision_id: str, title: str, source_type: str):
+    def find_superseded_decision(self, supersedes_text: str) -> Optional[str]:
+        """
+        Find the decision that is being superseded.
+        E.g., if supersedes_text is "Use Material UI", find that decision's ID.
+        """
+        if not supersedes_text or supersedes_text.lower() in ['null', 'none', 'n/a', '']:
+            return None
+        
+        best_match_id = None
+        best_similarity = 0.0
+        
+        for existing_id, existing_title, source_type, status in self.existing_decisions:
+            similarity = self.calculate_similarity(supersedes_text, existing_title)
+            if similarity > best_similarity and similarity >= 0.6:
+                best_similarity = similarity
+                best_match_id = existing_id
+        
+        return best_match_id
+    
+    def add_decision(self, decision_id: str, title: str, source_type: str, status: str = 'active'):
         """Add a new decision to the tracking list."""
-        self.existing_decisions.append((decision_id, title.lower().strip(), source_type))
+        self.existing_decisions.append((decision_id, title.lower().strip(), source_type, status))
 
 
 # ============================================
@@ -392,17 +420,27 @@ class DecisionExtractor:
         
         decisions = result.decisions if hasattr(result, 'decisions') else []
         
-        # Enrich with source info and check for duplicates
+        # Enrich with source info
         enriched = []
         for d in decisions:
             d['source_type'] = 'meeting'
             d['source_id'] = str(meeting.id)
             d['source_title'] = meeting.title
             d['decision_date'] = meeting.meeting_date.date() if meeting.meeting_date else None
+            d['extraction_notes'] = f"Extracted from meeting: {meeting.title}"
             
+            # Check for duplicates
             is_dup, related_ids = self.deduplicator.is_duplicate(d.get('title', ''))
             d['is_duplicate'] = is_dup
             d['related_decisions'] = related_ids
+            
+            # Check for superseded decision
+            supersedes_text = d.get('supersedes_decision')
+            if supersedes_text:
+                superseded_id = self.deduplicator.find_superseded_decision(supersedes_text)
+                d['supersedes_id'] = superseded_id
+            else:
+                d['supersedes_id'] = None
             
             enriched.append(d)
         
@@ -428,10 +466,18 @@ class DecisionExtractor:
             d['source_id'] = str(page.id)
             d['source_title'] = page.title
             d['decision_date'] = page.page_created_date.date() if page.page_created_date else None
+            d['extraction_notes'] = f"Extracted from Confluence page: {page.title}"
             
             is_dup, related_ids = self.deduplicator.is_duplicate(d.get('title', ''))
             d['is_duplicate'] = is_dup
             d['related_decisions'] = related_ids
+            
+            supersedes_text = d.get('supersedes_decision')
+            if supersedes_text:
+                superseded_id = self.deduplicator.find_superseded_decision(supersedes_text)
+                d['supersedes_id'] = superseded_id
+            else:
+                d['supersedes_id'] = None
             
             enriched.append(d)
         
@@ -457,6 +503,7 @@ class DecisionExtractor:
             d['source_id'] = str(ticket.id)
             d['source_title'] = f"{ticket.issue_key}: {ticket.summary}"
             d['decision_date'] = ticket.created_date.date() if ticket.created_date else None
+            d['extraction_notes'] = f"Extracted from Jira ticket: {ticket.issue_key}"
             
             # Always include this ticket
             if 'related_tickets' not in d or not d['related_tickets']:
@@ -468,6 +515,13 @@ class DecisionExtractor:
             d['is_duplicate'] = is_dup
             d['related_decisions'] = related_ids
             
+            supersedes_text = d.get('supersedes_decision')
+            if supersedes_text:
+                superseded_id = self.deduplicator.find_superseded_decision(supersedes_text)
+                d['supersedes_id'] = superseded_id
+            else:
+                d['supersedes_id'] = None
+            
             enriched.append(d)
         
         return enriched
@@ -478,48 +532,85 @@ class DecisionExtractor:
 # ============================================
 
 def save_decision(decision_data: dict, deduplicator: DecisionDeduplicator) -> Optional[Decision]:
-    """Save a decision to the database."""
+    """Save a decision to the database with ALL fields."""
     
     try:
+        import uuid as uuid_lib
+        
+        # Parse decision_date
         decision_date = decision_data.get('decision_date')
         if isinstance(decision_date, str):
             decision_date = datetime.strptime(decision_date, '%Y-%m-%d').date()
         
         if not decision_date:
+            print(f"    Skipping (no date): {decision_data.get('title', '?')[:30]}")
             return None
         
+        # Parse source_id
         source_id = decision_data.get('source_id')
         if source_id:
-            import uuid as uuid_lib
             source_id = uuid_lib.UUID(source_id)
         
         # Parse related_decisions
         related_decisions = decision_data.get('related_decisions', [])
         if related_decisions:
-            import uuid as uuid_lib
             related_decisions = [
                 uuid_lib.UUID(rid) if isinstance(rid, str) else rid 
                 for rid in related_decisions
             ]
         
+        # Parse supersedes_id
+        supersedes_id = decision_data.get('supersedes_id')
+        supersedes_obj = None
+        if supersedes_id:
+            try:
+                supersedes_obj = Decision.objects.get(id=uuid_lib.UUID(supersedes_id))
+            except Decision.DoesNotExist:
+                supersedes_obj = None
+        
+        # Create the decision
         decision = Decision.objects.create(
+            # Core info
             title=decision_data.get('title', 'Unknown Decision')[:500],
             description=decision_data.get('description'),
             decision_date=decision_date,
+            
+            # Context and reasoning
             rationale=decision_data.get('rationale'),
             alternatives_considered=decision_data.get('alternatives_considered'),
             impact=decision_data.get('impact'),
-            category=decision_data.get('category'),
+            
+            # People
             decided_by=decision_data.get('decided_by'),
+            
+            # Source tracking
             source_type=decision_data.get('source_type'),
             source_id=source_id,
             source_title=decision_data.get('source_title'),
+            
+            # Relationships
             related_tickets=decision_data.get('related_tickets'),
             related_decisions=related_decisions if related_decisions else None,
+            
+            # Categorization
+            category=decision_data.get('category'),
             tags=decision_data.get('tags'),
+            
+            # Lifecycle
+            status='active',
+            supersedes=supersedes_obj,
+            
+            # Metadata
             confidence_score=decision_data.get('confidence'),
-            status='active'
+            extraction_notes=decision_data.get('extraction_notes'),
         )
+        
+        # Update the superseded decision
+        if supersedes_obj:
+            supersedes_obj.superseded_by = decision
+            supersedes_obj.status = 'superseded'
+            supersedes_obj.save()
+            print(f"    ↳ Supersedes: {supersedes_obj.title[:40]}")
         
         # Add to deduplicator
         deduplicator.add_decision(str(decision.id), decision.title, decision.source_type)
@@ -528,6 +619,8 @@ def save_decision(decision_data: dict, deduplicator: DecisionDeduplicator) -> Op
         
     except Exception as e:
         print(f"    Error saving: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -593,6 +686,11 @@ def main():
     print(f"  - ChainOfThought(ExtractDecisionsFromJira)")
     print(f"  - DecisionDeduplicator (threshold: {args.similarity})")
     
+    print(f"\nFields extracted by LLM:")
+    print(f"  - title, description, rationale, alternatives_considered")
+    print(f"  - impact, category, decided_by, related_tickets")
+    print(f"  - supersedes_decision, tags, confidence")
+    
     # Clear or load existing
     if args.clear and not args.dry_run:
         print(f"\nClearing existing decisions...")
@@ -603,7 +701,7 @@ def main():
         print(f"\nLoading existing decisions...")
         deduplicator.load_existing_decisions()
     
-    stats = {'found': 0, 'saved': 0, 'duplicates': 0, 'skipped': 0}
+    stats = {'found': 0, 'saved': 0, 'duplicates': 0, 'skipped': 0, 'superseded': 0}
     
     # Process Meetings (PRIMARY SOURCE)
     if args.all or args.meetings:
@@ -624,8 +722,16 @@ def main():
                 for d in decisions:
                     stats['found'] += 1
                     is_dup = d.get('is_duplicate', False)
-                    marker = " [DUP]" if is_dup else ""
-                    print(f"    • {d.get('title', '?')[:50]}{marker}")
+                    has_supersedes = d.get('supersedes_id') is not None
+                    
+                    markers = []
+                    if is_dup:
+                        markers.append("DUP")
+                    if has_supersedes:
+                        markers.append("SUPERSEDES")
+                    marker_str = f" [{', '.join(markers)}]" if markers else ""
+                    
+                    print(f"    • {d.get('title', '?')[:50]}{marker_str}")
                     
                     if is_dup:
                         stats['duplicates'] += 1
@@ -637,11 +743,15 @@ def main():
                         saved = save_decision(d, deduplicator)
                         if saved:
                             stats['saved'] += 1
+                            if has_supersedes:
+                                stats['superseded'] += 1
                             if d.get('related_decisions'):
                                 update_related_decisions(saved, d['related_decisions'])
                             
             except Exception as e:
                 print(f"  Error: {e}")
+                import traceback
+                traceback.print_exc()
     
     # Process Confluence (SECONDARY)
     if args.all or args.confluence:
@@ -662,8 +772,16 @@ def main():
                 for d in decisions:
                     stats['found'] += 1
                     is_dup = d.get('is_duplicate', False)
-                    marker = " [DUP]" if is_dup else ""
-                    print(f"    • {d.get('title', '?')[:50]}{marker}")
+                    has_supersedes = d.get('supersedes_id') is not None
+                    
+                    markers = []
+                    if is_dup:
+                        markers.append("DUP")
+                    if has_supersedes:
+                        markers.append("SUPERSEDES")
+                    marker_str = f" [{', '.join(markers)}]" if markers else ""
+                    
+                    print(f"    • {d.get('title', '?')[:50]}{marker_str}")
                     
                     if is_dup:
                         stats['duplicates'] += 1
@@ -675,6 +793,8 @@ def main():
                         saved = save_decision(d, deduplicator)
                         if saved:
                             stats['saved'] += 1
+                            if has_supersedes:
+                                stats['superseded'] += 1
                             if d.get('related_decisions'):
                                 update_related_decisions(saved, d['related_decisions'])
                             
@@ -700,8 +820,16 @@ def main():
                 for d in decisions:
                     stats['found'] += 1
                     is_dup = d.get('is_duplicate', False)
-                    marker = " [DUP]" if is_dup else ""
-                    print(f"    • {d.get('title', '?')[:50]}{marker}")
+                    has_supersedes = d.get('supersedes_id') is not None
+                    
+                    markers = []
+                    if is_dup:
+                        markers.append("DUP")
+                    if has_supersedes:
+                        markers.append("SUPERSEDES")
+                    marker_str = f" [{', '.join(markers)}]" if markers else ""
+                    
+                    print(f"    • {d.get('title', '?')[:50]}{marker_str}")
                     
                     if is_dup:
                         stats['duplicates'] += 1
@@ -713,6 +841,8 @@ def main():
                         saved = save_decision(d, deduplicator)
                         if saved:
                             stats['saved'] += 1
+                            if has_supersedes:
+                                stats['superseded'] += 1
                             if d.get('related_decisions'):
                                 update_related_decisions(saved, d['related_decisions'])
                             
@@ -723,15 +853,16 @@ def main():
     print(f"\n{'='*60}")
     print("COMPLETE")
     print(f"{'='*60}")
-    print(f"  Total found:      {stats['found']}")
-    print(f"  Duplicates:       {stats['duplicates']}")
+    print(f"  Total found:        {stats['found']}")
+    print(f"  Duplicates:         {stats['duplicates']}")
+    print(f"  Superseded links:   {stats['superseded']}")
     
     if args.dry_run:
         print(f"  [DRY RUN] Would save: {stats['found'] - stats['skipped']}")
         print(f"  [DRY RUN] Would skip: {stats['skipped']}")
     else:
-        print(f"  Saved:            {stats['saved']}")
-        print(f"  Skipped:          {stats['skipped']}")
+        print(f"  Saved:              {stats['saved']}")
+        print(f"  Skipped:            {stats['skipped']}")
     
     # Timeline preview
     if not args.dry_run and stats['saved'] > 0:
@@ -743,9 +874,20 @@ def main():
         for d in decisions:
             cat = (d.category or 'N/A')[:10]
             src = d.source_type[:8]
-            print(f"  {d.decision_date} | {cat:10} | {src:8} | {d.title[:35]}")
+            status = d.status[:6]
+            print(f"  {d.decision_date} | {cat:10} | {src:8} | {status:6} | {d.title[:30]}")
         
         print(f"\n  Total decisions: {Decision.objects.count()}")
+        print(f"  Active: {Decision.objects.filter(status='active').count()}")
+        print(f"  Superseded: {Decision.objects.filter(status='superseded').count()}")
+        
+        # Show supersession chains
+        superseded = Decision.objects.filter(status='superseded')
+        if superseded.exists():
+            print(f"\n  Supersession chains:")
+            for d in superseded[:5]:
+                if d.superseded_by:
+                    print(f"    {d.title[:30]} → {d.superseded_by.title[:30]}")
 
 
 if __name__ == '__main__':
