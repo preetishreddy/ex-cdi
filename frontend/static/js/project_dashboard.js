@@ -296,13 +296,9 @@ function bCal(sp) {
     if (iT) c += ' today';
     if (m) c += ` has-meeting type-${m.type}`;
 
-    let tt = '';
-    if (m) {
-      const tc = m.type === 'standup' ? 'var(--success)' : m.type === 'retro' ? 'var(--warn)' : m.type === 'review' ? 'var(--accent2)' : 'var(--accent)';
-      tt = `<div class="cal-tooltip"><div class="tt-type" style="color:${tc}"><div class="tt-dot" style="background:${tc}"></div>${m.type.charAt(0).toUpperCase() + m.type.slice(1)}</div><div class="tt-name">${m.name}</div><div class="tt-project">${m.project} · ${m.time}</div><div class="tt-summary">${m.summary}</div></div>`;
-    }
+    const clickAttr = m ? ` onclick="window.openMeetingPopup('${m.date}','${esc(m.type)}','${esc(m.name)}','${esc(m.project)}','${esc(m.time)}','${esc(m.summary).replace(/'/g, "&#39;")}')"` : '';
 
-    h += `<div class="${c}">${d}${tt}</div>`;
+    h += `<div class="${c}"${clickAttr}>${d}</div>`;
   }
 
   h += '</div><div class="cal-legend"><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent)"></div>Planning</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--success)"></div>Standup</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent2)"></div>Review</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--warn)"></div>Retro</div></div>';
@@ -724,6 +720,207 @@ function setTktFilter(name) {
   if (container && ticketsData.length) renderTickets(container, ticketsData);
 }
 
+// ── Meeting Popup ────────────────────────────────────────────
+
+function getMeetingTypeColor(type) {
+  switch (type) {
+    case 'standup': return 'var(--success)';
+    case 'retro':   return 'var(--warn)';
+    case 'review':  return 'var(--accent2)';
+    default:        return 'var(--accent)';
+  }
+}
+
+function getMeetingTypeIcon(type) {
+  switch (type) {
+    case 'standup':  return '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>';
+    case 'retro':    return '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>';
+    case 'review':   return '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    case 'planning': return '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>';
+    default:         return '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
+  }
+}
+
+function splitItems(val) {
+  if (!val) return [];
+  // API returns arrays; local data may be a string
+  if (Array.isArray(val)) return val.map(s => String(s).trim()).filter(Boolean);
+  return String(val).split(/\n|(?:\d+\.\s)|\s*[;•–—]\s*/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+}
+
+function renderParticipants(participantsVal) {
+  if (!participantsVal) return '<span class="mp-empty">No participants listed</span>';
+  // API returns array; local data may be comma-separated string
+  let names;
+  if (Array.isArray(participantsVal)) {
+    names = participantsVal.map(s => String(s).trim()).filter(Boolean);
+  } else {
+    names = String(participantsVal).split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+  }
+  if (!names.length) return '<span class="mp-empty">No participants listed</span>';
+  return `<div class="mp-participants-wrap">${names.map(n => {
+    const initials = n.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+    return `<div class="mp-participant"><div class="mp-participant-avatar" style="background:${gr(n)}">${initials}</div><div class="mp-participant-name">${esc(n)}</div></div>`;
+  }).join('')}</div>`;
+}
+
+function openMeetingPopup(date, type, name, project, time, fallbackSummary) {
+  const overlay = document.getElementById('meetingPopupOverlay');
+  const popup = document.getElementById('meetingPopup');
+  const tc = getMeetingTypeColor(type);
+  const typeIcon = getMeetingTypeIcon(type);
+
+  // Show loading state immediately
+  popup.innerHTML = `
+    <div class="mp-header">
+      <div class="mp-type-icon" style="background:${tc}"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">${typeIcon}</svg></div>
+      <div class="mp-header-info">
+        <div class="mp-type-badge" style="color:${tc}"><div class="mp-type-dot" style="background:${tc}"></div>${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+        <div class="mp-title">${esc(name)}</div>
+        <div class="mp-date">${esc(date)} · ${esc(project)} · ${esc(time)}</div>
+      </div>
+      <button class="mp-close" onclick="closeMeetingPopup()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="mp-body">
+      <div class="mp-loading"><div class="spinner"></div>Fetching meeting details...</div>
+    </div>`;
+  overlay.classList.add('visible');
+
+  // Try fetching from API
+  fetch('/api/meetings/')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(data => {
+      const meetings = Array.isArray(data) ? data : (data.results || []);
+
+      // 1. Try exact date match first
+      let match = meetings.find(m => {
+        const mDate = (m.meeting_date || '').split('T')[0];
+        return mDate === date;
+      });
+
+      // 2. Fallback: match by meeting type keyword in title
+      if (!match) {
+        const typeKeywords = {
+          planning: ['planning'],
+          standup:  ['standup', 'daily'],
+          review:  ['review', 'midsprint', 'mid-sprint', 'demo'],
+          retro:   ['retro', 'retrospective'],
+        };
+        const keywords = typeKeywords[type] || [type];
+        match = meetings.find(m => {
+          const t = (m.title || '').toLowerCase();
+          return keywords.some(k => t.includes(k));
+        });
+      }
+
+      // 3. Fallback: just use the first meeting if any exist
+      if (!match && meetings.length) {
+        match = meetings[0];
+      }
+
+      if (match) {
+        renderMeetingPopupContent(match, type, tc, typeIcon);
+      } else {
+        renderMeetingPopupFallback(date, type, name, project, time, fallbackSummary, tc, typeIcon);
+      }
+    })
+    .catch(() => {
+      // API unavailable — use local data
+      renderMeetingPopupFallback(date, type, name, project, time, fallbackSummary, tc, typeIcon);
+    });
+}
+
+function renderMeetingPopupContent(m, type, tc, typeIcon) {
+  const popup = document.getElementById('meetingPopup');
+  const title = m.title || 'Untitled Meeting';
+  const mDate = m.meeting_date ? new Date(m.meeting_date).toLocaleString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No date';
+  const duration = m.duration_seconds ? `${Math.round(m.duration_seconds / 60)} min` : '';
+
+  const decisions = splitItems(m.key_decisions);
+  const actions = splitItems(m.action_items);
+
+  popup.innerHTML = `
+    <div class="mp-header">
+      <div class="mp-type-icon" style="background:${tc}"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">${typeIcon}</svg></div>
+      <div class="mp-header-info">
+        <div class="mp-type-badge" style="color:${tc}"><div class="mp-type-dot" style="background:${tc}"></div>${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+        <div class="mp-title">${esc(title)}</div>
+        <div class="mp-date">${mDate}${duration ? ' · ' + duration : ''}</div>
+      </div>
+      <button class="mp-close" onclick="closeMeetingPopup()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="mp-body">
+      ${m.summary ? `
+      <div class="mp-section">
+        <div class="mp-section-label"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>Summary</div>
+        <div class="mp-summary-text">${esc(m.summary)}</div>
+      </div>` : ''}
+      ${decisions.length ? `
+      <div class="mp-section">
+        <div class="mp-section-label"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Key Decisions</div>
+        <div class="mp-decisions-list">${decisions.map(d => `
+          <div class="mp-decision-item">
+            <div class="mp-decision-icon"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/></svg></div>
+            <div>${esc(d)}</div>
+          </div>`).join('')}
+        </div>
+      </div>` : ''}
+      ${actions.length ? `
+      <div class="mp-section">
+        <div class="mp-section-label"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Action Items</div>
+        <div class="mp-actions-list">${actions.map(a => `
+          <div class="mp-action-item">
+            <div class="mp-action-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div>${esc(a)}</div>
+          </div>`).join('')}
+        </div>
+      </div>` : ''}
+      <div class="mp-section">
+        <div class="mp-section-label"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Participants</div>
+        ${renderParticipants(m.participants)}
+      </div>
+    </div>`;
+}
+
+function renderMeetingPopupFallback(date, type, name, project, time, summary, tc, typeIcon) {
+  const popup = document.getElementById('meetingPopup');
+  popup.innerHTML = `
+    <div class="mp-header">
+      <div class="mp-type-icon" style="background:${tc}"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">${typeIcon}</svg></div>
+      <div class="mp-header-info">
+        <div class="mp-type-badge" style="color:${tc}"><div class="mp-type-dot" style="background:${tc}"></div>${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+        <div class="mp-title">${esc(name)}</div>
+        <div class="mp-date">${esc(date)} · ${esc(project)} · ${esc(time)}</div>
+      </div>
+      <button class="mp-close" onclick="closeMeetingPopup()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="mp-body">
+      <div class="mp-section">
+        <div class="mp-section-label"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>Summary</div>
+        <div class="mp-summary-text">${esc(summary)}</div>
+      </div>
+      <div class="mp-section">
+        <div class="mp-section-label" style="color:var(--muted);font-style:italic"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Detailed data (decisions, participants) will appear when the API is available</div>
+      </div>
+    </div>`;
+}
+
+function closeMeetingPopup() {
+  document.getElementById('meetingPopupOverlay').classList.remove('visible');
+}
+
+// Close on Escape key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeMeetingPopup();
+});
+
+// Close on clicking overlay background
+document.getElementById('meetingPopupOverlay')?.addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeMeetingPopup();
+});
+
 // ── Expose functions to global scope (needed for inline onclick in ES modules) ──
 window.sTab = sTab;
 window.oIt = oIt;
@@ -737,3 +934,5 @@ window.loadTickets = loadTickets;
 window.ticketsLoaded = false;
 window.setTktView = setTktView;
 window.setTktFilter = setTktFilter;
+window.openMeetingPopup = openMeetingPopup;
+window.closeMeetingPopup = closeMeetingPopup;
