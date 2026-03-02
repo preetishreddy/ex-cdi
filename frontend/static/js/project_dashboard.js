@@ -216,7 +216,7 @@ function selectSprint(id) {
     <div class="tabs-strip">
       <div class="tab-item active" onclick="sTab('dp','summary',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>AI Summary</div>
       <div class="tab-item" onclick="sTab('dp','meetings',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Meetings</div>
-      <div class="tab-item" onclick="sTab('dp','outcomes',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Outcomes</div>
+      <div class="tab-item" onclick="sTab('dp','outcomes',this);loadTickets()"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Outcomes</div>
       <div class="tab-item" onclick="sTab('dp','issues',this)"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>All Issues</div>
       <div class="tab-item" onclick="sTab('dp','decisions',this);loadDecisions()"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Decisions</div>
     </div>
@@ -242,10 +242,7 @@ function selectSprint(id) {
     <div class="tab-content" id="dp-meetings">${bCal(sp)}</div>
 
     <div class="tab-content" id="dp-outcomes">
-      ${is.length
-        ? `<div class="outcome-list">${is.map(i => oIt(i)).join('')}</div>`
-        : '<p style="color:var(--muted);font-size:13px">No issues yet.</p>'
-      }
+      <div class="decisions-loading"><div class="spinner"></div>Click to load outcomes…</div>
     </div>
 
     <div class="tab-content" id="dp-issues">
@@ -566,6 +563,167 @@ function setDtlFilter(cat) {
   if (container && decisionsData.length) renderDecisions(container, decisionsData);
 }
 
+// ── Tickets / Outcomes API Integration ───────────────────────
+let ticketsLoaded = false;
+let ticketsData = [];
+let tktViewMode = 'all';       // 'all' | 'sprint' | 'assignee'
+let tktActiveFilter = null;
+
+const ISSUE_ICONS = {
+  Epic:  '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+  Story: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  Task:  '<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  Bug:   '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'
+};
+
+function loadTickets() {
+  const container = document.getElementById('dp-outcomes');
+  if (!container) return;
+  if (ticketsLoaded) { renderTickets(container, ticketsData); return; }
+  container.innerHTML = '<div class="decisions-loading"><div class="spinner"></div>Fetching outcomes from API…</div>';
+  fetch('/api/tickets/')
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(data => {
+      ticketsLoaded = true;
+      ticketsData = Array.isArray(data) ? data : (data.results || []);
+      renderTickets(container, ticketsData);
+    })
+    .catch(err => {
+      container.innerHTML = `<div class="decisions-error">⚠ Failed to load outcomes: ${err.message}<br><button class="btn btn-ghost" style="margin-top:12px" onclick="window.ticketsLoaded=false;window.loadTickets()">Retry</button></div>`;
+    });
+}
+
+// ── Shared ticket card renderer ──
+function renderTicketEntry(t) {
+  const icon = ISSUE_ICONS[t.issue_type] || ISSUE_ICONS.Task;
+  const pc = t.priority === 'Critical' ? 'var(--danger)' : t.priority === 'High' ? 'var(--warn)' : t.priority === 'Medium' ? 'var(--accent)' : 'var(--muted)';
+  const rd = t.resolved_date ? new Date(t.resolved_date) : null;
+  const resolvedStr = rd ? `${MO[rd.getMonth()]} ${rd.getDate()}, ${rd.getFullYear()}` : '—';
+  const comments = (t.comments || '').split('\n').filter(c => c.trim());
+
+  return `<div class="tkt-card">
+    <div class="tkt-header">
+      <div class="tkt-issue-info">
+        <div class="tkt-type-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg></div>
+        <span class="tkt-issue-key">${esc(t.issue_key)}</span>
+        <span class="tkt-type-label">${esc(t.issue_type)}</span>
+      </div>
+      <div class="tkt-header-badges">
+        ${t.story_points ? `<span class="tkt-pts">${t.story_points} pts</span>` : ''}
+        <span class="tkt-priority" style="color:${pc};border-color:${pc}">${esc(t.priority)}</span>
+      </div>
+    </div>
+    <div class="tkt-summary">${esc(t.summary)}</div>
+    ${t.description ? `<div class="tkt-desc">${esc(t.description)}</div>` : ''}
+    <div class="tkt-meta">
+      <div class="tkt-meta-item"><div class="tkt-meta-label">Assignee</div><div class="tkt-meta-val"><span class="tkt-avatar" style="background:${gr(t.assignee || 'U')}">${ini(t.assignee || 'U')}</span>${esc(t.assignee || 'Unassigned')}</div></div>
+      <div class="tkt-meta-item"><div class="tkt-meta-label">Reporter</div><div class="tkt-meta-val">${esc(t.reporter || '—')}</div></div>
+      <div class="tkt-meta-item"><div class="tkt-meta-label">Resolved</div><div class="tkt-meta-val" style="font-family:var(--font-mono);font-size:11px">${resolvedStr}</div></div>
+      ${t.sprint ? `<div class="tkt-meta-item"><div class="tkt-meta-label">Sprint</div><div class="tkt-meta-val">${esc(t.sprint)}</div></div>` : ''}
+    </div>
+    ${t.labels && t.labels.length ? `<div class="tkt-labels">${t.labels.map(l => `<span class="tkt-label">${esc(l)}</span>`).join('')}</div>` : ''}
+    ${comments.length ? `<div class="tkt-comments"><div class="tkt-comments-header"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>${comments.length} comment${comments.length !== 1 ? 's' : ''}</div><div class="tkt-comments-list">${comments.map(c => `<div class="tkt-comment">${esc(c)}</div>`).join('')}</div></div>` : ''}
+  </div>`;
+}
+
+// ── View 1: All completed tickets ──
+function renderTicketsAll(tickets) {
+  const sorted = [...tickets].sort((a, b) => (b.resolved_date || '').localeCompare(a.resolved_date || ''));
+  return `<div class="tkt-list">${sorted.map(t => renderTicketEntry(t)).join('')}</div>`;
+}
+
+// ── View 2: Grouped by sprint ──
+function renderTicketsBySprint(tickets) {
+  const groups = {};
+  tickets.forEach(t => { const sp = t.sprint || 'Unassigned'; if (!groups[sp]) groups[sp] = []; groups[sp].push(t); });
+  const order = Object.keys(groups).sort((a, b) => {
+    if (a === 'Unassigned') return 1; if (b === 'Unassigned') return -1;
+    return a.localeCompare(b);
+  });
+  let h = '';
+  order.forEach(sp => {
+    const items = groups[sp].sort((a, b) => (b.resolved_date || '').localeCompare(a.resolved_date || ''));
+    const pts = items.reduce((s, t) => s + (t.story_points || 0), 0);
+    h += `<div class="tkt-sprint-section">
+      <div class="tkt-sprint-header">
+        <div class="tkt-sprint-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <div class="tkt-sprint-info"><div class="tkt-sprint-name">${esc(sp)}</div><div class="tkt-sprint-stats">${items.length} completed · ${pts} pts</div></div>
+      </div>
+      <div class="tkt-list">${items.map(t => renderTicketEntry(t)).join('')}</div>
+    </div>`;
+  });
+  return h;
+}
+
+// ── View 3: Filter by assignee ──
+function renderTicketsByAssignee(tickets, active) {
+  const names = [...new Set(tickets.map(t => t.assignee || 'Unassigned'))].sort();
+  let h = `<div class="dtl-filter-bar">`;
+  names.forEach(name => {
+    const count = tickets.filter(t => (t.assignee || 'Unassigned') === name).length;
+    const sel = active === name ? ' active' : '';
+    h += `<button class="dtl-filter-chip${sel}" onclick="window.setTktFilter('${esc(name).replace(/'/g, "\\'")}')"><span class="tkt-avatar-sm" style="background:${gr(name)}">${ini(name)}</span>${esc(name)}<span class="dtl-filter-count">${count}</span></button>`;
+  });
+  h += `</div>`;
+  if (active) {
+    const filtered = tickets.filter(t => (t.assignee || 'Unassigned') === active).sort((a, b) => (b.resolved_date || '').localeCompare(a.resolved_date || ''));
+    h += `<div class="tkt-list">${filtered.map(t => renderTicketEntry(t)).join('')}</div>`;
+  } else {
+    h += `<div class="decisions-empty" style="margin-top:8px">Select a team member above to filter outcomes.</div>`;
+  }
+  return h;
+}
+
+// ── Main tickets render controller ──
+function renderTickets(container, tickets) {
+  const completed = tickets.filter(t => t.status === 'Done' && t.is_completed === true);
+  if (!completed.length) { container.innerHTML = '<div class="decisions-empty">No completed outcomes found.</div>'; return; }
+
+  const totalPts = completed.reduce((s, t) => s + (t.story_points || 0), 0);
+  const memberCount = new Set(completed.map(t => t.assignee)).size;
+
+  const toolbar = `<div class="dtl-toolbar">
+    <div class="dtl-toolbar-left">
+      <button class="dtl-view-btn${tktViewMode === 'all' ? ' active' : ''}" onclick="window.setTktView('all')">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+        All
+      </button>
+      <button class="dtl-view-btn${tktViewMode === 'sprint' ? ' active' : ''}" onclick="window.setTktView('sprint')">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        By Sprint
+      </button>
+      <button class="dtl-view-btn${tktViewMode === 'assignee' ? ' active' : ''}" onclick="window.setTktView('assignee')">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        By Assignee
+      </button>
+    </div>
+    <div class="dtl-toolbar-right">
+      <span class="dtl-toolbar-stat">${completed.length} completed</span>
+      <span class="dtl-toolbar-stat">${totalPts} pts</span>
+      <span class="dtl-toolbar-stat">${memberCount} members</span>
+    </div>
+  </div>`;
+
+  let body = '';
+  if (tktViewMode === 'all')           body = renderTicketsAll(completed);
+  else if (tktViewMode === 'sprint')   body = renderTicketsBySprint(completed);
+  else if (tktViewMode === 'assignee') body = renderTicketsByAssignee(completed, tktActiveFilter);
+
+  container.innerHTML = toolbar + `<div class="dtl-view-body">${body}</div>`;
+}
+
+function setTktView(mode) {
+  tktViewMode = mode;
+  tktActiveFilter = null;
+  const container = document.getElementById('dp-outcomes');
+  if (container && ticketsData.length) renderTickets(container, ticketsData);
+}
+function setTktFilter(name) {
+  tktActiveFilter = tktActiveFilter === name ? null : name;
+  const container = document.getElementById('dp-outcomes');
+  if (container && ticketsData.length) renderTickets(container, ticketsData);
+}
+
 // ── Expose functions to global scope (needed for inline onclick in ES modules) ──
 window.sTab = sTab;
 window.oIt = oIt;
@@ -575,3 +733,7 @@ window.loadDecisions = loadDecisions;
 window.decisionsLoaded = false;
 window.setDtlView = setDtlView;
 window.setDtlFilter = setDtlFilter;
+window.loadTickets = loadTickets;
+window.ticketsLoaded = false;
+window.setTktView = setTktView;
+window.setTktFilter = setTktFilter;
