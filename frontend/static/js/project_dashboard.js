@@ -363,19 +363,6 @@ function oIt(i) {
   return `<div class="outcome-item"><div class="outcome-icon-wrap ${t}"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic}</svg></div><div><div class="outcome-text"><strong>${i.assignee}</strong> — ${i.summary}<span class="outcome-badge ${bc}">${bt}</span></div><div class="outcome-owner">${i.issue_key} · ${i.story_points} pts · ${i.priority}</div></div></div>`;
 }
 
-// ── Export ────────────────────────────────────────────────────
-function exportData() {
-  const d = SPRINTS.find(s => s.id === activeSprint);
-  if (!d) return;
-  const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
-  const u = URL.createObjectURL(b);
-  const a = document.createElement('a');
-  a.href = u;
-  a.download = d.name.replace(/\s/g, '-').toLowerCase() + '-export.json';
-  a.click();
-  URL.revokeObjectURL(u);
-}
-
 // ── Decisions API Integration ────────────────────────────────
 
 // Cache for source detail lookups (meeting / confluence)
@@ -1022,11 +1009,70 @@ document.getElementById('meetingPopupOverlay')?.addEventListener('click', e => {
   if (e.target === e.currentTarget) closeMeetingPopup();
 });
 
+// ── Sidebar: Collapsible Projects Section ────────────────────
+let projectListLoaded = false;
+
+function toggleProjectList() {
+  const list = document.getElementById('projectList');
+  const chevron = document.getElementById('projectChevron');
+  const isCollapsed = list.classList.toggle('collapsed');
+  chevron.classList.toggle('collapsed', isCollapsed);
+  localStorage.setItem('projectListCollapsed', isCollapsed ? '1' : '0');
+  if (!projectListLoaded && !isCollapsed) loadProjectList();
+}
+
+async function loadProjectList() {
+  const container = document.getElementById('projectList');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/projects/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const projects = Array.isArray(data) ? data : (data.results || []);
+    if (!projects.length) {
+      container.innerHTML = '<div class="project-list-loading"><span class="nav-label" style="color:var(--muted);font-size:11px">No projects found</span></div>';
+      return;
+    }
+    container.innerHTML = projects.map(p => {
+      const statusCls = (p.status || 'active').toLowerCase().replace(/\s+/g, '_');
+      const label = esc(p.name);
+      // Link to this page with project id as query param
+      return `<a class="project-link" href="project_dashboard.html?project=${p.id}" data-label="${label}" data-project-id="${p.id}">`
+        + `<span class="project-dot ${statusCls}"></span>`
+        + `<span class="project-name nav-label">${label}</span></a>`;
+    }).join('');
+    projectListLoaded = true;
+    highlightCurrentProject();
+  } catch (e) {
+    console.error('Failed to load projects:', e);
+    container.innerHTML = '<div class="project-list-loading"><span class="nav-label" style="color:var(--muted);font-size:11px">Could not load projects</span></div>';
+  }
+}
+
+function highlightCurrentProject() {
+  const params = new URLSearchParams(window.location.search);
+  const pid = params.get('project');
+  document.querySelectorAll('.project-link').forEach(el => {
+    el.classList.toggle('active', el.dataset.projectId === pid);
+  });
+}
+
+// Auto-load on page init (after a small delay so sidebar renders first)
+setTimeout(() => {
+  const saved = localStorage.getItem('projectListCollapsed');
+  if (saved === '1') {
+    document.getElementById('projectList')?.classList.add('collapsed');
+    document.getElementById('projectChevron')?.classList.add('collapsed');
+  } else {
+    loadProjectList();
+  }
+}, 100);
+
 // ── Expose functions to global scope (needed for inline onclick in ES modules) ──
+window.toggleProjectList = toggleProjectList;
 window.sTab = sTab;
 window.oIt = oIt;
 window.selectSprint = selectSprint;
-window.exportData = exportData;
 window.loadDecisions = loadDecisions;
 window.decisionsLoaded = false;
 window.setDtlView = setDtlView;
