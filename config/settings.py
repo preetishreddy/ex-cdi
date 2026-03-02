@@ -31,6 +31,13 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*'] if DEBUG else os.getenv('ALLOWED_HOSTS', '').split(',')
 
+# CORS settings — allow frontend dev server
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+CORS_ALLOW_CREDENTIALS = True
+
 
 # Application definition
 
@@ -44,6 +51,7 @@ INSTALLED_APPS = [
     # PostgreSQL specific fields (ArrayField etc.)
     'django.contrib.postgres',
     # Third-party
+    'corsheaders',
     'rest_framework',
     'drf_spectacular',
     # Local apps
@@ -55,6 +63,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
