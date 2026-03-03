@@ -510,6 +510,34 @@ body.sidebar-collapsed .main {
 }
 .detail-panel.visible { display: block; }
 
+/* === Sprint Ticket Stats === */
+/* === Topbar Stats Chips === */
+.topbar-stats {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.ts-chip {
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 12px 4px 10px;
+  transition: border-color .15s, background .15s;
+}
+.ts-chip:hover { border-color: var(--chip-c, var(--accent)); background: rgba(255,255,255,0.06); }
+.ts-num {
+  font-family: var(--font-display); font-size: 14px; font-weight: 700;
+  color: var(--chip-c, var(--text)); line-height: 1;
+}
+.ts-txt {
+  font-size: 10px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .4px; line-height: 1;
+}
+.ts-blocker { background: rgba(255,77,106,0.08); border-color: rgba(255,77,106,0.3); }
+.ts-loading {
+  font-size: 10px; color: var(--muted); font-style: italic;
+}
+@media (max-width: 700px) {
+  .topbar-stats { display: none; }
+}
+
 /* === Content Row (detail + team sidebar) === */
 .content-row {
   display: flex; gap: 20px; align-items: flex-start;

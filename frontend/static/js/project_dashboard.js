@@ -260,6 +260,67 @@ function selectSprint(id) {
   p.style.animation = 'none';
   p.offsetHeight;
   p.style.animation = '';
+
+  // Auto-fetch ticket stats for this sprint
+  loadSprintStats(sp.sprint_number);
+}
+
+// ── Sprint Ticket Stats ──────────────────────────────────────
+let sprintStatsCache = {};
+
+function loadSprintStats(sprintNumber) {
+  const el = document.getElementById('topbarStats');
+  if (!el) return;
+
+  if (sprintStatsCache[sprintNumber]) {
+    renderSprintStats(el, sprintStatsCache[sprintNumber]);
+    return;
+  }
+
+  el.innerHTML = '<span class="ts-loading">Loading stats…</span>';
+
+  fetch(`/api/sprints/${sprintNumber}/tickets/`)
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(data => {
+      sprintStatsCache[sprintNumber] = data;
+      renderSprintStats(el, data);
+    })
+    .catch(() => {
+      el.innerHTML = '';
+    });
+}
+
+function renderSprintStats(el, data) {
+  const tickets = data.tickets || [];
+  const total = data.total_tickets || tickets.length;
+  const completed = data.completed_count || 0;
+  const pending = data.pending_count || (total - completed);
+
+  // Count blockers (status = Blocked or priority = Critical/Highest)
+  const blockers = tickets.filter(t => {
+    const st = (t.status || '').toLowerCase();
+    const pr = (t.priority || '').toLowerCase();
+    return st === 'blocked' || pr === 'critical' || pr === 'highest';
+  }).length;
+
+  // Count in-progress
+  const inProgress = tickets.filter(t => {
+    const st = (t.status || '').toLowerCase();
+    return st === 'in progress' || st === 'in_progress' || st === 'in review';
+  }).length;
+
+  // Total story points
+  const totalPts = tickets.reduce((s, t) => s + (t.story_points || 0), 0);
+  const completedPts = tickets.filter(t => t.is_completed).reduce((s, t) => s + (t.story_points || 0), 0);
+
+  el.innerHTML = `
+    <div class="ts-chip" style="--chip-c:var(--accent)"><span class="ts-num">${total}</span><span class="ts-txt">Tickets</span></div>
+    <div class="ts-chip" style="--chip-c:var(--success)"><span class="ts-num">${completed}</span><span class="ts-txt">Done</span></div>
+    <div class="ts-chip" style="--chip-c:var(--warn)"><span class="ts-num">${pending}</span><span class="ts-txt">Pending</span></div>
+    ${blockers > 0 ? `<div class="ts-chip ts-blocker" style="--chip-c:var(--danger)"><span class="ts-num">${blockers}</span><span class="ts-txt">Blockers</span></div>` : ''}
+    <div class="ts-chip" style="--chip-c:var(--accent2)"><span class="ts-num">${inProgress}</span><span class="ts-txt">In Progress</span></div>
+    <div class="ts-chip" style="--chip-c:var(--text)"><span class="ts-num">${completedPts}/${totalPts}</span><span class="ts-txt">SP</span></div>
+  `;
 }
 
 // ── Calendar Builder ─────────────────────────────────────────
