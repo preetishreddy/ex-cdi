@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, inline_serializer
 from rest_framework import serializers as drf_serializers
+import uuid
 
 from knowledge_base.models import (
     GitCommit, JiraTicket, ConfluencePage,
@@ -502,13 +503,14 @@ class SprintListView(generics.ListAPIView):
 @extend_schema_view(
     get=extend_schema(
         tags=['Sprints'],
-        summary='Get sprint by ID',
-        description='Retrieve a single sprint with all its tickets.',
+        summary='Get sprint by sprint number',
+        description='Retrieve a single sprint with all its tickets by sprint number (e.g. 1, 2, 3).',
     ),
 )
 class SprintDetailView(generics.RetrieveAPIView):
     serializer_class = SprintSerializer
     queryset = Sprint.objects.prefetch_related('sprint_tickets').all()
+    lookup_field = 'sprint_number'
 
 
 # ── Decisions ─────────────────────────────────────────────────────────────────
@@ -564,6 +566,83 @@ ENTITY_MAP = {
     'sprints':   (Sprint,         'pk'),
     'decisions': (Decision,       'pk'),
 }
+
+# ── Chat ─────────────────────────────────────────────────────────────────────
+
+# In-memory store of OnboardingChatbot instances keyed by conversation_id.
+# Each conversation gets its own bot instance so history is preserved per session.
+_chat_sessions: dict = {}
+
+_ChatRequestSerializer = inline_serializer('ChatRequest', fields={
+    'query': drf_serializers.CharField(),
+    'conversation_id': drf_serializers.CharField(required=False),
+})
+
+_ChatResponseSerializer = inline_serializer('ChatResponse', fields={
+    'answer': drf_serializers.CharField(),
+    'intent': drf_serializers.CharField(),
+    'confidence': drf_serializers.FloatField(),
+    'sources': drf_serializers.ListField(child=drf_serializers.CharField()),
+    'conversation_id': drf_serializers.CharField(),
+    'turn': drf_serializers.IntegerField(),
+})
+
+
+class ChatView(APIView):
+    """POST /api/chat/ — send a query to the AI chatbot and get a response."""
+
+    @extend_schema(
+        tags=['Chat'],
+        summary='Chat with the AI assistant',
+        description=(
+            'Send a natural-language query to the onboarding AI chatbot. '
+            'The bot classifies intent, retrieves relevant records from the knowledge base, '
+            'builds context, and generates a response via GPT-4o. '
+            'Pass `conversation_id` from a previous response to continue an existing conversation '
+            '(the bot remembers prior turns and resolves references like "it" or "that decision"). '
+            'Omit `conversation_id` to start a fresh session.'
+        ),
+        request=_ChatRequestSerializer,
+        responses={
+            200: _ChatResponseSerializer,
+            400: _ErrorSerializer,
+            503: _ErrorSerializer,
+        },
+    )
+    def post(self, request):
+        query = (request.data.get('query') or '').strip()
+        if not query:
+            return Response({'error': 'Field "query" is required.'}, status=400)
+
+        conversation_id = request.data.get('conversation_id') or str(uuid.uuid4())
+
+        # Get or create a chatbot instance for this conversation
+        if conversation_id not in _chat_sessions:
+            try:
+                from chatbot.main import OnboardingChatbot
+                _chat_sessions[conversation_id] = OnboardingChatbot()
+            except Exception as e:
+                return Response(
+                    {'error': f'Failed to initialize chatbot: {str(e)}'},
+                    status=503,
+                )
+
+        bot = _chat_sessions[conversation_id]
+
+        try:
+            response = bot.chat(query)
+        except Exception as e:
+            return Response({'error': f'Chatbot error: {str(e)}'}, status=503)
+
+        return Response({
+            'answer': response.answer,
+            'intent': response.intent,
+            'confidence': response.confidence,
+            'sources': response.sources,
+            'conversation_id': conversation_id,
+            'turn': response.conversation_turn,
+        })
+
 
 class DeleteView(APIView):
     """

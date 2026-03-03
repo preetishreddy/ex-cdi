@@ -37,6 +37,10 @@ DB_PASSWORD=your_db_password
 DB_HOST=your_db_host
 DB_PORT=5432
 
+# Chatbot (AI)
+# Get key: bytez.com → API Keys
+BYTEZ_API_KEY=your_bytez_api_key
+
 # GitHub
 # Get token: GitHub → Settings → Developer Settings → Personal Access Tokens → Generate new token (needs repo scope)
 GITHUB_TOKEN=your_github_personal_access_token
@@ -187,6 +191,72 @@ Returns metadata only (no raw VTT transcript).
 
 ---
 
+### Employees
+
+#### List all employees
+| Method | URL |
+|--------|-----|
+| GET | `/api/employees/` |
+
+#### Get a single employee
+| Method | URL |
+|--------|-----|
+| GET | `/api/employees/<uuid>/` |
+
+**URL param:** `uuid` — copy from the list response
+
+---
+
+### Sprints
+
+#### List all sprints
+| Method | URL |
+|--------|-----|
+| GET | `/api/sprints/` |
+
+#### Get a single sprint
+| Method | URL |
+|--------|-----|
+| GET | `/api/sprints/<sprint_number>/` |
+
+**URL param:** `sprint_number` — the sprint number e.g. `1`, `2`, `3`
+
+#### Get all tickets in a sprint
+| Method | URL |
+|--------|-----|
+| GET | `/api/sprints/<sprint_number>/tickets/` |
+
+**Response includes:** all tickets with `is_completed`, `teammates`, and summary counts (total, completed, pending).
+
+#### Get all meetings during a sprint
+| Method | URL |
+|--------|-----|
+| GET | `/api/sprints/<sprint_number>/meetings/` |
+
+**Response includes:** all meetings whose date falls within the sprint's start and end dates.
+
+---
+
+### Decisions
+
+#### List all decisions
+| Method | URL |
+|--------|-----|
+| GET | `/api/decisions/` |
+
+**Optional query params:**
+- `?category=architecture` — filter by category
+- `?source_type=meeting` — filter by source (meeting, confluence, jira, git_commit)
+
+#### Get a single decision
+| Method | URL |
+|--------|-----|
+| GET | `/api/decisions/<uuid>/` |
+
+**URL param:** `uuid` — copy from the list response
+
+---
+
 ### Search
 
 | Method | URL |
@@ -207,6 +277,65 @@ Searches across: commit messages, ticket summaries/descriptions, page titles/con
     "meetings": [...]
 }
 ```
+
+---
+
+## Chat API
+
+The AI chatbot endpoint. Sends a natural-language question to the onboarding assistant and gets a response.
+
+| Method | URL |
+|--------|-----|
+| POST | `/api/chat/` |
+
+**How to send in Postman:**
+1. Method: `POST`
+2. URL: `http://127.0.0.1:8000/api/chat/`
+3. Go to **Body** tab → select **raw** → change dropdown to **JSON**
+4. Type the body (do not copy-paste — use straight quotes)
+5. Click Send
+
+**Request body — first message:**
+```json
+{
+    "query": "Why did we choose React?"
+}
+```
+
+**Request body — follow-up message (continue the conversation):**
+```json
+{
+    "query": "Who made that decision?",
+    "conversation_id": "89d58088-e5fe-4020-9e90-10cd4375bece"
+}
+```
+
+Pass the `conversation_id` from the previous response to keep the bot in the same conversation. Omit it to start fresh.
+
+**Response:**
+```json
+{
+    "answer": "React was chosen because of the team's existing expertise...",
+    "intent": "decision_query",
+    "confidence": 0.85,
+    "sources": ["decision:Use React for frontend", "meeting:Sprint 1 Planning"],
+    "conversation_id": "89d58088-e5fe-4020-9e90-10cd4375bece",
+    "turn": 1
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `answer` | The AI's response text |
+| `intent` | What the bot understood you were asking (decision_query, person_query, ticket_query, etc.) |
+| `confidence` | How confident the intent classifier was (0–1) |
+| `sources` | Which database records were used to generate the answer |
+| `conversation_id` | Copy this into your next request to continue the conversation |
+| `turn` | Which turn number this is in the conversation |
+
+**Requires in `.env`:** `BYTEZ_API_KEY`
+
+**Note:** Conversation history is stored in memory only. If the server restarts, all conversation history is lost and a new `conversation_id` must be used.
 
 ---
 
@@ -345,6 +474,9 @@ One common endpoint to delete any record from the database.
 | Confluence Page | `pages` | UUID | `550e8400-...` |
 | Meeting | `meetings` | UUID | `550e8400-...` |
 | Project | `projects` | UUID | `550e8400-...` |
+| Employee | `employees` | UUID | `550e8400-...` |
+| Sprint | `sprints` | UUID | `550e8400-...` |
+| Decision | `decisions` | UUID | `550e8400-...` |
 
 ### How to use in Postman
 1. Method: `DELETE`

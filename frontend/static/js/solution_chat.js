@@ -1,9 +1,9 @@
 /* ============================================================
    EX-CDI — Solution Chat (Agentic Mode)
    ============================================================
-   An AI-powered assistant panel that queries the knowledge base
-   APIs to answer questions about the project — ticketing, code,
-   meetings, decisions, and more.
+   AI-powered assistant panel backed by the real OnboardingChatbot
+   on the Django backend (/api/chat/). Supports multi-turn
+   conversation memory, intent classification, and GPT-4o responses.
    ============================================================ */
 
 const Solution = (() => {
@@ -11,7 +11,7 @@ const Solution = (() => {
   let isOpen = false;
   let isThinking = false;
   let messages = [];
-  let conversationId = Date.now();
+  let conversationId = generateId(); // unique per chat session
 
   // ── DOM refs (set after inject) ───────────────────────────
   let panel, overlay, fab, messagesEl, textarea, sendBtn, statusText, statusDot;
@@ -185,7 +185,7 @@ const Solution = (() => {
   // ── Clear conversation ────────────────────────────────────
   function clearConversation() {
     messages = [];
-    conversationId = Date.now();
+    conversationId = generateId(); // new ID = fresh bot instance on backend
     showWelcome();
     setStatus('ready');
   }
@@ -205,7 +205,7 @@ const Solution = (() => {
     autoGrow();
     sendBtn.disabled = true;
 
-    // Process
+    // Process via backend
     await processQuery(text);
   }
 
@@ -312,318 +312,62 @@ const Solution = (() => {
     }
   }
 
-  // ── Process Query (Agentic Flow) ──────────────────────────
+  // ── Process Query — calls /api/chat/ ──────────────────────
   async function processQuery(query) {
-    const thinkingEl = showThinking();
-    const lowerQ = query.toLowerCase();
+    showThinking();
 
     try {
-      // Determine intent & run agentic steps
-      const intent = classifyIntent(lowerQ);
-      let responseHtml = '';
-      let results = [];
-
-      // Step 1: Parse intent
       addStep('Analyzing your question...');
-      await delay(400);
-
-      // Step 2: Choose data sources
-      addStep(`Querying ${intent.sources.join(', ')}...`);
-      await delay(200);
-
-      // Step 3: Fetch data based on intent
-      const apiData = await fetchForIntent(intent, query);
-
-      // Step 4: Format response
-      addStep('Formatting response...');
       await delay(300);
 
-      const formatted = formatResponse(intent, apiData, query);
-      responseHtml = formatted.html;
-      results = formatted.results;
+      addStep('Querying knowledge base...');
+
+      const res = await fetch('/api/chat/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, conversation_id: conversationId }),
+      });
+
+      addStep('Generating AI response...');
+      await delay(200);
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      // Persist conversation_id so follow-up questions use the same bot instance
+      if (data.conversation_id) conversationId = data.conversation_id;
+
+      const responseHtml = textToHtml(data.answer);
+
+      // Convert source strings ("decision:Why we chose React") to result cards
+      const results = (data.sources || []).map(s => {
+        const colonIdx = s.indexOf(':');
+        const type = colonIdx > -1 ? s.substring(0, colonIdx) : s;
+        const title = colonIdx > -1 ? s.substring(colonIdx + 1).trim() : s;
+        return {
+          type: type.charAt(0).toUpperCase() + type.slice(1),
+          title: title || s,
+          meta: data.intent ? `intent: ${data.intent} · turn ${data.turn || 1}` : '',
+        };
+      });
 
       completeAllSteps();
       hideThinking();
-
       addMessage('bot', responseHtml, { results });
 
     } catch (err) {
       console.error('Solution error:', err);
       completeAllSteps();
       hideThinking();
-      addMessage('bot', `<p>Sorry, I ran into an error while processing your question.</p><p><code>${escHtml(err.message)}</code></p><p>Make sure the backend server is running and try again.</p>`);
+      addMessage('bot',
+        `<p>Sorry, I ran into an error: <code>${escHtml(err.message)}</code></p>` +
+        `<p>Make sure the backend is running and <code>BYTEZ_API_KEY</code> is set in your <code>.env</code>.</p>`
+      );
     }
-  }
-
-  // ── Intent Classification ─────────────────────────────────
-  function classifyIntent(q) {
-    if (/decision|decided|chose|choice|rationale/.test(q)) {
-      return { type: 'decisions', sources: ['decisions'] };
-    }
-    if (/commit|push|code change|merged|git|diff/.test(q)) {
-      return { type: 'commits', sources: ['commits'] };
-    }
-    if (/ticket|issue|jira|bug|story|task|backlog/.test(q)) {
-      return { type: 'tickets', sources: ['tickets'] };
-    }
-    if (/meeting|standup|sync|retro|call|discuss/.test(q)) {
-      return { type: 'meetings', sources: ['meetings'] };
-    }
-    if (/confluence|page|doc|wiki|documentation/.test(q)) {
-      return { type: 'pages', sources: ['pages'] };
-    }
-    if (/sprint|iteration|velocity|milestone/.test(q)) {
-      return { type: 'sprints', sources: ['sprints'] };
-    }
-    if (/who|team|member|employee|engineer|assign/.test(q)) {
-      return { type: 'employees', sources: ['employees'] };
-    }
-    if (/project|overview|status|summary|health/.test(q)) {
-      return { type: 'project', sources: ['projects', 'sprints'] };
-    }
-    // Default: full-text search
-    return { type: 'search', sources: ['search'] };
-  }
-
-  // ── Fetch for Intent ──────────────────────────────────────
-  async function fetchForIntent(intent, query) {
-    const base = '/api';
-
-    switch (intent.type) {
-      case 'decisions': {
-        const res = await fetch(`${base}/decisions/`);
-        return { decisions: await res.json() };
-      }
-      case 'commits': {
-        const res = await fetch(`${base}/commits/`);
-        return { commits: await res.json() };
-      }
-      case 'tickets': {
-        const res = await fetch(`${base}/tickets/`);
-        return { tickets: await res.json() };
-      }
-      case 'meetings': {
-        const res = await fetch(`${base}/meetings/`);
-        return { meetings: await res.json() };
-      }
-      case 'pages': {
-        const res = await fetch(`${base}/pages/`);
-        return { pages: await res.json() };
-      }
-      case 'sprints': {
-        const res = await fetch(`${base}/sprints/`);
-        return { sprints: await res.json() };
-      }
-      case 'employees': {
-        const res = await fetch(`${base}/employees/`);
-        return { employees: await res.json() };
-      }
-      case 'project': {
-        const [projRes, sprintRes] = await Promise.all([
-          fetch(`${base}/projects/`),
-          fetch(`${base}/sprints/`),
-        ]);
-        return {
-          projects: await projRes.json(),
-          sprints: await sprintRes.json(),
-        };
-      }
-      case 'search':
-      default: {
-        // Extract meaningful search terms
-        const searchQ = extractSearchTerms(query);
-        const res = await fetch(`${base}/search/?q=${encodeURIComponent(searchQ)}`);
-        return { search: await res.json() };
-      }
-    }
-  }
-
-  function extractSearchTerms(q) {
-    const stopwords = new Set(['what', 'is', 'the', 'a', 'an', 'how', 'do', 'does', 'did', 'can', 'show', 'me', 'tell', 'about', 'find', 'get', 'list', 'all', 'any', 'are', 'was', 'were', 'been', 'be', 'have', 'has', 'had', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'this', 'that', 'it', 'my', 'our', 'their', 'i', 'we', 'you', 'they', 'please', 'could', 'would', 'should']);
-    const words = q.toLowerCase().replace(/[^\w\s-]/g, '').split(/\s+/).filter(w => !stopwords.has(w) && w.length > 1);
-    return words.join(' ') || q;
-  }
-
-  // ── Format Response ───────────────────────────────────────
-  function formatResponse(intent, data, query) {
-    let html = '';
-    let results = [];
-
-    switch (intent.type) {
-      case 'decisions': {
-        const items = toArray(data.decisions);
-        if (!items.length) {
-          html = '<p>No decisions found in the knowledge base yet.</p>';
-          break;
-        }
-        const recent = items.slice(0, 8);
-        html = `<p>Found <strong>${items.length} decision${items.length !== 1 ? 's' : ''}</strong> in the knowledge base. Here are the most recent:</p>`;
-        results = recent.map(d => ({
-          type: 'Decision',
-          title: d.title || d.summary || 'Untitled',
-          meta: `${d.category || 'general'} · ${d.source_type || 'unknown'} · ${fmtDate(d.decided_at || d.created_at)}`,
-        }));
-        break;
-      }
-
-      case 'commits': {
-        const items = toArray(data.commits);
-        if (!items.length) {
-          html = '<p>No commits found in the knowledge base.</p>';
-          break;
-        }
-        const recent = items.slice(0, 8);
-        html = `<p>Found <strong>${items.length} commit${items.length !== 1 ? 's' : ''}</strong>. Here are the latest:</p>`;
-        results = recent.map(c => ({
-          type: 'Commit',
-          title: `${c.sha?.substring(0, 7) || '???'} — ${truncate(c.message, 80)}`,
-          meta: `${c.author_name || 'Unknown'} · ${fmtDate(c.commit_date)}`,
-        }));
-        break;
-      }
-
-      case 'tickets': {
-        const items = toArray(data.tickets);
-        if (!items.length) {
-          html = '<p>No Jira tickets found in the knowledge base.</p>';
-          break;
-        }
-        const recent = items.slice(0, 8);
-        html = `<p>Found <strong>${items.length} ticket${items.length !== 1 ? 's' : ''}</strong>. Here are the latest:</p>`;
-        results = recent.map(t => ({
-          type: t.issue_type || 'Ticket',
-          title: `${t.issue_key} — ${truncate(t.summary, 80)}`,
-          meta: `${t.status || 'unknown'} · ${t.assignee || 'Unassigned'} · ${t.priority || ''}`,
-        }));
-        break;
-      }
-
-      case 'meetings': {
-        const items = toArray(data.meetings);
-        if (!items.length) {
-          html = '<p>No meetings found in the knowledge base.</p>';
-          break;
-        }
-        const recent = items.slice(0, 6);
-        html = `<p>Found <strong>${items.length} meeting${items.length !== 1 ? 's' : ''}</strong>. Here are the most recent:</p>`;
-        results = recent.map(m => ({
-          type: 'Meeting',
-          title: m.title || 'Untitled meeting',
-          meta: `${fmtDate(m.meeting_date)} · ${m.participants ? m.participants.split(',').length + ' participants' : ''}`,
-        }));
-        break;
-      }
-
-      case 'pages': {
-        const items = toArray(data.pages);
-        if (!items.length) {
-          html = '<p>No Confluence pages found.</p>';
-          break;
-        }
-        const recent = items.slice(0, 6);
-        html = `<p>Found <strong>${items.length} page${items.length !== 1 ? 's' : ''}</strong>:</p>`;
-        results = recent.map(p => ({
-          type: 'Page',
-          title: p.title || 'Untitled',
-          meta: `${fmtDate(p.last_updated || p.created_at)}`,
-        }));
-        break;
-      }
-
-      case 'sprints': {
-        const items = toArray(data.sprints);
-        if (!items.length) {
-          html = '<p>No sprints found.</p>';
-          break;
-        }
-        html = `<p>Found <strong>${items.length} sprint${items.length !== 1 ? 's' : ''}</strong>:</p>`;
-        results = items.slice(0, 8).map(s => ({
-          type: `Sprint ${s.sprint_number || ''}`,
-          title: s.name || `Sprint ${s.sprint_number}`,
-          meta: `${s.status || 'unknown'} · ${fmtDate(s.start_date)} → ${fmtDate(s.end_date)}`,
-        }));
-        break;
-      }
-
-      case 'employees': {
-        const items = toArray(data.employees);
-        if (!items.length) {
-          html = '<p>No team members found.</p>';
-          break;
-        }
-        html = `<p>Found <strong>${items.length} team member${items.length !== 1 ? 's' : ''}</strong>:</p>`;
-        results = items.map(e => ({
-          type: 'Member',
-          title: e.name || e.email || 'Unknown',
-          meta: `${e.role || 'Employee'} · ${e.email || ''}`,
-        }));
-        break;
-      }
-
-      case 'project': {
-        const projects = toArray(data.projects);
-        const sprints = toArray(data.sprints);
-        if (!projects.length) {
-          html = '<p>No projects found in the knowledge base.</p>';
-          break;
-        }
-        const p = projects[0];
-        const activeSprints = sprints.filter(s => ['active', 'current', 'in_progress'].includes((s.status || '').toLowerCase()));
-        const completedSprints = sprints.filter(s => ['completed', 'closed', 'done'].includes((s.status || '').toLowerCase()));
-
-        html = `<p><strong>${escHtml(p.name || 'Project')}</strong></p>`;
-        if (p.description) html += `<p>${escHtml(p.description)}</p>`;
-        html += `<p>📊 <strong>${sprints.length}</strong> total sprints · <strong>${activeSprints.length}</strong> active · <strong>${completedSprints.length}</strong> completed</p>`;
-
-        results = sprints.slice(0, 5).map(s => ({
-          type: `Sprint`,
-          title: s.name || `Sprint ${s.sprint_number}`,
-          meta: `${s.status || 'unknown'} · ${fmtDate(s.start_date)} → ${fmtDate(s.end_date)}`,
-        }));
-        break;
-      }
-
-      case 'search':
-      default: {
-        const s = data.search || {};
-        const commits = toArray(s.commits);
-        const tickets = toArray(s.tickets);
-        const pages = toArray(s.pages);
-        const meetings = toArray(s.meetings);
-        const total = commits.length + tickets.length + pages.length + meetings.length;
-
-        if (total === 0) {
-          html = `<p>No results found for <strong>"${escHtml(query)}"</strong>. Try different keywords or ask about a specific topic like commits, meetings, or decisions.</p>`;
-          break;
-        }
-
-        html = `<p>Found <strong>${total} result${total !== 1 ? 's' : ''}</strong> for <strong>"${escHtml(query)}"</strong>:</p>`;
-
-        commits.slice(0, 3).forEach(c => results.push({
-          type: 'Commit',
-          title: `${c.sha?.substring(0, 7)} — ${truncate(c.message, 70)}`,
-          meta: `${c.author_name || ''} · ${fmtDate(c.commit_date)}`,
-        }));
-        tickets.slice(0, 3).forEach(t => results.push({
-          type: 'Ticket',
-          title: `${t.issue_key} — ${truncate(t.summary, 70)}`,
-          meta: `${t.status || ''} · ${t.assignee || ''}`,
-        }));
-        pages.slice(0, 3).forEach(p => results.push({
-          type: 'Page',
-          title: p.title || 'Untitled',
-          meta: fmtDate(p.last_updated || p.created_at),
-        }));
-        meetings.slice(0, 3).forEach(m => results.push({
-          type: 'Meeting',
-          title: m.title || 'Untitled',
-          meta: fmtDate(m.meeting_date),
-        }));
-        break;
-      }
-    }
-
-    return { html, results };
   }
 
   // ── Render Helpers ────────────────────────────────────────
@@ -637,7 +381,7 @@ const Solution = (() => {
   }
 
   function renderResults(results) {
-    if (!results.length) return '';
+    if (!results || !results.length) return '';
     return `<div class="msg-results">${results.map(r => `
       <div class="msg-result-card">
         <div class="msg-result-card-type">${escHtml(r.type)}</div>
@@ -655,24 +399,31 @@ const Solution = (() => {
     return d.innerHTML;
   }
 
-  function toArray(v) {
-    if (Array.isArray(v)) return v;
-    if (v && Array.isArray(v.results)) return v.results;
-    if (v && typeof v === 'object' && !Array.isArray(v)) return [v];
-    return [];
+  // Convert plain-text LLM output to safe HTML paragraphs
+  function textToHtml(text) {
+    if (!text) return '<p>No response received.</p>';
+    return text
+      .split(/\n\n+/)
+      .map(para => {
+        const trimmed = para.trim();
+        if (!trimmed) return '';
+        return `<p>${escHtml(trimmed).replace(/\n/g, '<br>')}</p>`;
+      })
+      .filter(Boolean)
+      .join('');
   }
 
-  function truncate(s, n) {
-    if (!s) return '';
-    s = String(s);
-    return s.length > n ? s.substring(0, n) + '...' : s;
+  function generateId() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
   }
 
   function fmtDate(d) {
     if (!d) return '';
     try {
-      const dt = new Date(d);
-      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     } catch { return String(d); }
   }
 

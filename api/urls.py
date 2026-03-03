@@ -2,6 +2,8 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # Chat
+    path("chat/", views.ChatView.as_view(), name="chat"),
     # Commits
     path("commits/", views.CommitListView.as_view(), name="commit-list"),
     path("commits/<str:sha>/", views.CommitDetailView.as_view(), name="commit-detail"),
@@ -35,7 +37,7 @@ urlpatterns = [
     path("employees/<uuid:pk>/", views.EmployeeDetailView.as_view(), name="employee-detail"),
     # Sprints
     path("sprints/", views.SprintListView.as_view(), name="sprint-list"),
-    path("sprints/<uuid:pk>/", views.SprintDetailView.as_view(), name="sprint-detail"),
+    path("sprints/<int:sprint_number>/", views.SprintDetailView.as_view(), name="sprint-detail"),
     path("sprints/<int:sprint_number>/tickets/", views.SprintTicketsOutcomeView.as_view(), name="sprint-tickets-outcome"),
     path("sprints/<int:sprint_number>/meetings/", views.SprintMeetingsView.as_view(), name="sprint-meetings"),
     # Decisions
