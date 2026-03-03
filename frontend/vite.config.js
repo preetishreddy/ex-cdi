@@ -27,6 +27,7 @@ export default defineConfig({
         server.middlewares.use((req, res, next) => {
           const rewrites = {
             '/project_overview': '/project_dashboard.html',
+            '/integrations':     '/integrations.html',
             '/login':            '/login.html',
             '/register':         '/register.html',
             '/forgot_password':  '/forgot_password.html',
@@ -48,6 +49,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'project_dashboard.html'),
+        integrations: resolve(__dirname, 'integrations.html'),
         login: resolve(__dirname, 'login.html'),
         register: resolve(__dirname, 'register.html'),
         forgot_password: resolve(__dirname, 'forgot_password.html'),
