@@ -68,6 +68,7 @@ async function fetchSprints() {
     overlay.remove();
     try { await fetchSprints(); } catch (e) { console.error('Failed to fetch sprints:', e); }
     document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
+    loadProjectTicketStats();
     buildTimeline();
     if (SPRINTS.length) {
       selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
@@ -100,6 +101,7 @@ async function fetchSprints() {
   setTimeout(() => {
     overlay.classList.add('hidden');
     document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
+    loadProjectTicketStats();
     buildTimeline();
     if (SPRINTS.length) {
       selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
@@ -262,39 +264,32 @@ function selectSprint(id) {
   p.style.animation = '';
 
   // Auto-fetch ticket stats for this sprint
-  loadSprintStats(sp.sprint_number);
 }
 
-// ── Sprint Ticket Stats ──────────────────────────────────────
-let sprintStatsCache = {};
+// ── Project Ticket Stats (overall) ───────────────────────────
+let projectStatsLoaded = false;
 
-function loadSprintStats(sprintNumber) {
+function loadProjectTicketStats() {
   const el = document.getElementById('topbarStats');
-  if (!el) return;
-
-  if (sprintStatsCache[sprintNumber]) {
-    renderSprintStats(el, sprintStatsCache[sprintNumber]);
-    return;
-  }
+  if (!el || projectStatsLoaded) return;
 
   el.innerHTML = '<span class="ts-loading">Loading stats…</span>';
 
-  fetch(`/api/sprints/${sprintNumber}/tickets/`)
+  fetch('/api/tickets/')
     .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-    .then(data => {
-      sprintStatsCache[sprintNumber] = data;
-      renderSprintStats(el, data);
+    .then(tickets => {
+      projectStatsLoaded = true;
+      renderProjectStats(el, tickets);
     })
     .catch(() => {
       el.innerHTML = '';
     });
 }
 
-function renderSprintStats(el, data) {
-  const tickets = data.tickets || [];
-  const total = data.total_tickets || tickets.length;
-  const completed = data.completed_count || 0;
-  const pending = data.pending_count || (total - completed);
+function renderProjectStats(el, tickets) {
+  const total = tickets.length;
+  const completed = tickets.filter(t => t.is_completed).length;
+  const pending = total - completed;
 
   // Count blockers (status = Blocked or priority = Critical/Highest)
   const blockers = tickets.filter(t => {
@@ -1245,11 +1240,12 @@ function renderTeamCard() {
   card.style.display = '';
 }
 
-// Render team card after project rail loads
+// Render team card + project goal after project rail loads
 const _origLoadProjectRail = loadProjectRail;
 loadProjectRail = async function() {
   await _origLoadProjectRail();
   renderTeamCard();
+  renderProjectGoal();
 };
 
 // ── Update page title with project name ──────────────────────
@@ -1291,3 +1287,30 @@ window.openMeetingPopup = openMeetingPopup;
 window.closeMeetingPopup = closeMeetingPopup;
 window.loadSprintMeetings = loadSprintMeetings;
 window.renderTeamCard = renderTeamCard;
+
+// ── Project Goal / Overview Banner ───────────────────────────
+function renderProjectGoal() {
+  const banner = document.getElementById('projectGoalBanner');
+  if (!banner) return;
+  const pid = new URLSearchParams(window.location.search).get('project');
+  const project = projectsCache.find(p => p.id === pid) || projectsCache[0];
+  if (!project || !project.description) { banner.style.display = 'none'; return; }
+
+  const startFmt = project.start_date ? new Date(project.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const endFmt = project.target_end_date ? new Date(project.target_end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const dateRange = startFmt && endFmt ? `${startFmt} — ${endFmt}` : '';
+
+  banner.innerHTML = `
+    <div class="pg-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></div>
+    <div class="pg-body">
+      <div class="pg-header">
+        <span class="pg-label">Project Goal</span>
+        ${project.status ? `<span class="pg-status pg-status--${project.status}">${project.status}</span>` : ''}
+        ${dateRange ? `<span class="pg-dates">${dateRange}</span>` : ''}
+      </div>
+      <div class="pg-text">${esc(project.description)}</div>
+    </div>
+  `;
+  banner.style.display = '';
+}
+window.renderProjectGoal = renderProjectGoal;

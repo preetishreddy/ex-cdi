@@ -523,11 +523,11 @@ body.sidebar-collapsed .main {
 }
 .ts-chip:hover { border-color: var(--chip-c, var(--accent)); background: rgba(255,255,255,0.06); }
 .ts-num {
-  font-family: var(--font-display); font-size: 14px; font-weight: 700;
+  font-family: var(--font-display); font-size: 16px; font-weight: 700;
   color: var(--chip-c, var(--text)); line-height: 1;
 }
 .ts-txt {
-  font-size: 10px; font-weight: 600; color: var(--muted);
+  font-size: 12px; font-weight: 600; color: var(--muted);
   text-transform: uppercase; letter-spacing: .4px; line-height: 1;
 }
 .ts-blocker { background: rgba(255,77,106,0.08); border-color: rgba(255,77,106,0.3); }
@@ -536,6 +536,43 @@ body.sidebar-collapsed .main {
 }
 @media (max-width: 700px) {
   .topbar-stats { display: none; }
+}
+
+/* === Project Goal Banner === */
+.project-goal-banner {
+  display: flex; align-items: flex-start; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent); border-radius: 10px;
+  padding: 14px 18px; margin-bottom: 18px;
+}
+.project-goal-banner:empty { display: none; }
+.pg-icon {
+  flex-shrink: 0; width: 28px; height: 28px;
+  color: var(--accent); margin-top: 2px;
+}
+.pg-icon svg { width: 100%; height: 100%; stroke: currentColor; fill: none; }
+.pg-body { flex: 1; min-width: 0; }
+.pg-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 6px; flex-wrap: wrap;
+}
+.pg-label {
+  font-family: var(--font-display); font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .6px; color: var(--accent);
+}
+.pg-status {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; padding: 2px 8px; border-radius: 10px;
+}
+.pg-status--active { background: rgba(0,212,138,0.12); color: var(--success); }
+.pg-status--completed { background: rgba(30,143,255,0.12); color: var(--accent); }
+.pg-status--planned { background: rgba(162,155,254,0.12); color: var(--accent2); }
+.pg-dates {
+  font-size: 11px; color: var(--muted); font-weight: 500;
+}
+.pg-text {
+  font-size: 13px; color: var(--text); line-height: 1.55;
+  opacity: .85;
 }
 
 /* === Content Row (detail + team sidebar) === */
