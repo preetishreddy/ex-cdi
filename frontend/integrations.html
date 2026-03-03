@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EX-CDI — Project Overview</title>
+<title>EX-CDI — Integrations</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="static/css/project_dashboard.css">
 <link rel="stylesheet" href="static/css/integrations.css">
@@ -13,40 +13,42 @@
 <div class="page-bg"></div>
 <nav class="sidebar" id="sidebar">
   <div class="sidebar-logo" id="sidebarToggle" title="Toggle sidebar"><div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><div class="logo-text">EX-<span>CDI</span></div></div>
-  <div class="sidebar-section">Projects</div>
-  <div class="project-rail" id="projectRail">
-    <div class="project-rail-loading"><div class="spinner-sm"></div></div>
-  </div>
-  <div class="project-flyout" id="projectFlyout">
-    <div class="flyout-arrow"></div>
-    <div class="flyout-header">
-      <span class="flyout-title" id="flyoutTitle"></span>
-      <span class="flyout-status" id="flyoutStatus"></span>
-    </div>
-    <div class="flyout-body" id="flyoutBody"></div>
-    <a class="flyout-link" id="flyoutLink" href="#">Open Project →</a>
-  </div>
+  <div class="sidebar-section">Navigation</div>
+  <a class="sidebar-nav-item" href="project_dashboard.html">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span class="nav-label">Dashboard</span>
+  </a>
+  <a class="sidebar-nav-item active" href="integrations.html">
+    <svg viewBox="0 0 24 24"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/></svg>
+    <span class="nav-label">Integrations</span>
+  </a>
   <div class="sidebar-bottom"><div class="user-chip"><div class="avatar-sm" id="userAvatar">—</div><div><div class="user-name" id="sidebarUserName">Loading...</div><div class="user-role">Employee</div></div><a href="login.html" class="logout-btn" onclick="sessionStorage.clear()"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a></div></div>
 </nav>
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 <div class="main">
-  <div class="topbar"><div><div class="page-title">Project Overview</div><div class="page-sub" id="topbarSub">Loading workspace...</div></div><div class="topbar-stats" id="topbarStats"></div></div>
-  <div class="content" id="overviewContent">
-    <div class="project-goal-banner" id="projectGoalBanner"></div>
-    <div class="timeline-wrap" id="timelineWrap"><div class="timeline-label">Project Timeline — ONBOARD</div><div class="timeline" id="timeline"></div></div>
-    <div class="content-row">
-      <div class="detail-panel" id="detailPanel"></div>
+  <div class="topbar">
+    <div>
+      <div class="page-title">Integrations</div>
+      <div class="page-sub" id="topbarSub">Connected tools & data sources</div>
     </div>
   </div>
-  <div class="content ig-content" id="integrationsContent" style="display:none">
+  <div class="content ig-content">
+
+    <!-- Integration cards row -->
     <div class="ig-cards" id="igCards">
+      <!-- Jira Card -->
       <div class="ig-card" data-source="jira">
         <div class="ig-card-header">
-          <div class="ig-card-icon jira"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-          <div><div class="ig-card-title">Jira</div><div class="ig-card-subtitle">Project Management</div></div>
+          <div class="ig-card-icon jira">
+            <svg viewBox="0 0 24 24"><path d="M12.005 2c-5.523 0-10.005 4.477-10.005 10s4.482 10 10.005 10c5.528 0 9.995-4.477 9.995-10s-4.467-10-9.995-10zm0 18c-4.42 0-8.005-3.582-8.005-8 0-4.42 3.585-8 8.005-8 4.415 0 7.995 3.58 7.995 8 0 4.418-3.58 8-7.995 8z"/><polygon points="13 7 11 7 11 13 16.5 16.25 17.5 14.58 13 12 13 7"/></svg>
+          </div>
+          <div>
+            <div class="ig-card-title">Jira</div>
+            <div class="ig-card-subtitle">Project Management</div>
+          </div>
           <div class="ig-card-status connected"><span class="ig-status-dot"></span>Connected</div>
         </div>
-        <div class="ig-card-stats">
+        <div class="ig-card-stats" id="jiraStats">
           <div class="ig-stat"><span class="ig-stat-num" id="jiraTotalTickets">—</span><span class="ig-stat-label">Tickets</span></div>
           <div class="ig-stat"><span class="ig-stat-num" id="jiraCompleted">—</span><span class="ig-stat-label">Completed</span></div>
           <div class="ig-stat"><span class="ig-stat-num" id="jiraInProgress">—</span><span class="ig-stat-label">In Progress</span></div>
@@ -54,16 +56,23 @@
         </div>
         <div class="ig-card-actions">
           <a class="ig-action-btn primary" id="jiraDashboardLink" href="#" target="_blank">Open Jira Dashboard</a>
-          <button class="ig-action-btn" onclick="showIgSection('jira')">View Tickets</button>
+          <button class="ig-action-btn" onclick="showSection('jira')">View Tickets</button>
         </div>
       </div>
+
+      <!-- Confluence Card -->
       <div class="ig-card" data-source="confluence">
         <div class="ig-card-header">
-          <div class="ig-card-icon confluence"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
-          <div><div class="ig-card-title">Confluence</div><div class="ig-card-subtitle">Documentation</div></div>
+          <div class="ig-card-icon confluence">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <div>
+            <div class="ig-card-title">Confluence</div>
+            <div class="ig-card-subtitle">Documentation</div>
+          </div>
           <div class="ig-card-status connected"><span class="ig-status-dot"></span>Connected</div>
         </div>
-        <div class="ig-card-stats">
+        <div class="ig-card-stats" id="confluenceStats">
           <div class="ig-stat"><span class="ig-stat-num" id="confTotalPages">—</span><span class="ig-stat-label">Pages</span></div>
           <div class="ig-stat"><span class="ig-stat-num" id="confSpaces">—</span><span class="ig-stat-label">Spaces</span></div>
           <div class="ig-stat"><span class="ig-stat-num" id="confAuthors">—</span><span class="ig-stat-label">Authors</span></div>
@@ -71,16 +80,23 @@
         </div>
         <div class="ig-card-actions">
           <a class="ig-action-btn primary" id="confluenceLink" href="#" target="_blank">Open Confluence</a>
-          <button class="ig-action-btn" onclick="showIgSection('confluence')">View Pages</button>
+          <button class="ig-action-btn" onclick="showSection('confluence')">View Pages</button>
         </div>
       </div>
+
+      <!-- GitHub Card -->
       <div class="ig-card" data-source="github">
         <div class="ig-card-header">
-          <div class="ig-card-icon github"><svg viewBox="0 0 24 24"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg></div>
-          <div><div class="ig-card-title">GitHub</div><div class="ig-card-subtitle">Version Control</div></div>
+          <div class="ig-card-icon github">
+            <svg viewBox="0 0 24 24"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+          </div>
+          <div>
+            <div class="ig-card-title">GitHub</div>
+            <div class="ig-card-subtitle">Version Control</div>
+          </div>
           <div class="ig-card-status connected"><span class="ig-status-dot"></span>Connected</div>
         </div>
-        <div class="ig-card-stats">
+        <div class="ig-card-stats" id="githubStats">
           <div class="ig-stat"><span class="ig-stat-num" id="ghTotalCommits">—</span><span class="ig-stat-label">Commits</span></div>
           <div class="ig-stat"><span class="ig-stat-num" id="ghContributors">—</span><span class="ig-stat-label">Contributors</span></div>
           <div class="ig-stat"><span class="ig-stat-num" id="ghFilesChanged">—</span><span class="ig-stat-label">Files Changed</span></div>
@@ -88,41 +104,37 @@
         </div>
         <div class="ig-card-actions">
           <a class="ig-action-btn primary" id="githubRepoLink" href="#" target="_blank">Open Repository</a>
-          <button class="ig-action-btn" onclick="showIgSection('github')">View Commits</button>
+          <button class="ig-action-btn" onclick="showSection('github')">View Commits</button>
         </div>
       </div>
     </div>
+
+    <!-- Detail section (shows tickets / pages / commits when clicked) -->
     <div class="ig-detail-section" id="igDetailSection">
       <div class="ig-detail-header">
         <h3 class="ig-detail-title" id="igDetailTitle">Jira Tickets</h3>
         <div class="ig-detail-controls">
           <input class="ig-search" id="igSearch" type="text" placeholder="Search...">
-          <select class="ig-filter" id="igFilter"><option value="all">All</option></select>
-          <button class="ig-close-btn" onclick="hideIgSection()" title="Close">&times;</button>
+          <select class="ig-filter" id="igFilter">
+            <option value="all">All</option>
+          </select>
+          <button class="ig-close-btn" onclick="hideSection()" title="Close">&times;</button>
         </div>
       </div>
-      <div class="ig-detail-body" id="igDetailBody"></div>
+      <div class="ig-detail-body" id="igDetailBody">
+        <!-- Dynamically populated -->
+      </div>
     </div>
+
   </div>
 </div>
-<div class="loading-overlay" id="loadingOverlay">
-  <div class="loading-content">
-    <div class="loading-logo"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
-    <div class="loading-title">EX-<span>CDI</span></div>
-    <div class="loading-bar"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
-    <div class="loading-text" id="loadingText">Initializing...</div>
-  </div>
-</div>
-<div class="meeting-popup-overlay" id="meetingPopupOverlay">
-  <div class="meeting-popup" id="meetingPopup"></div>
-</div>
+
 <script>
 // Sidebar toggle logic
 const sidebar = document.getElementById('sidebar');
 const toggleBtn = document.getElementById('sidebarToggle');
-const overlay = document.getElementById('sidebarOverlay');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
 
-// Restore state from localStorage
 if (localStorage.getItem('sidebarCollapsed') === 'true') {
   sidebar.classList.add('collapsed');
   document.body.classList.add('sidebar-collapsed');
@@ -132,7 +144,7 @@ toggleBtn.addEventListener('click', () => {
   const isMobile = window.innerWidth <= 900;
   if (isMobile) {
     sidebar.classList.toggle('mobile-open');
-    overlay.classList.toggle('visible', sidebar.classList.contains('mobile-open'));
+    sidebarOverlay.classList.toggle('visible', sidebar.classList.contains('mobile-open'));
   } else {
     sidebar.classList.toggle('collapsed');
     document.body.classList.toggle('sidebar-collapsed');
@@ -140,12 +152,19 @@ toggleBtn.addEventListener('click', () => {
   }
 });
 
-overlay.addEventListener('click', () => {
+sidebarOverlay.addEventListener('click', () => {
   sidebar.classList.remove('mobile-open');
-  overlay.classList.remove('visible');
+  sidebarOverlay.classList.remove('visible');
 });
+
+// Load user info
+const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+if (user.name) {
+  document.getElementById('sidebarUserName').textContent = user.name;
+  document.getElementById('userAvatar').textContent = user.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+}
 </script>
-<script type="module" src="/static/js/project_dashboard.js"></script>
+<script type="module" src="/static/js/integrations.js"></script>
 <script src="/static/js/solution_chat.js"></script>
 </body>
 </html>

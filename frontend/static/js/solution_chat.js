@@ -11,10 +11,10 @@ const Solution = (() => {
   let isOpen = false;
   let isThinking = false;
   let messages = [];
-  let conversationId = Date.now();
-
+  let conversationId = Date.now();  let chatHistory = [];          // { id, title, messages[], ts }
+  let historyOpen = false;
   // ── DOM refs (set after inject) ───────────────────────────
-  let panel, overlay, fab, messagesEl, textarea, sendBtn, statusText, statusDot;
+  let panel, fab, messagesEl, textarea, sendBtn, statusText, statusDot;
 
   // ── Suggested questions ───────────────────────────────────
   const SUGGESTIONS = [
@@ -39,25 +39,22 @@ const Solution = (() => {
     check: '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
     loader: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>',
     zap: '<svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    newchat: '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    history: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    edit: '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+    collapse: '<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>',
   };
 
   // ── Inject DOM ────────────────────────────────────────────
   function inject() {
-    // Floating button
-    const fabEl = document.createElement('button');
-    fabEl.className = 'solution-fab';
-    fabEl.title = 'Open Solution (Ctrl+L)';
-    fabEl.innerHTML = `${ICONS.sparkles}<div class="fab-badge"></div>`;
-    fabEl.addEventListener('click', toggle);
-    document.body.appendChild(fabEl);
-    fab = fabEl;
-
-    // Overlay
-    const overlayEl = document.createElement('div');
-    overlayEl.className = 'solution-overlay';
-    overlayEl.addEventListener('click', close);
-    document.body.appendChild(overlayEl);
-    overlay = overlayEl;
+    // Collapsed tab (replaces FAB)
+    const tabEl = document.createElement('div');
+    tabEl.className = 'solution-collapsed-tab';
+    tabEl.title = 'Open Solution AI (Ctrl+L)';
+    tabEl.innerHTML = `${ICONS.sparkles}<span>Solution</span><div class="tab-dot"></div>`;
+    tabEl.addEventListener('click', toggle);
+    document.body.appendChild(tabEl);
+    fab = tabEl;
 
     // Panel
     const panelEl = document.createElement('div');
@@ -70,9 +67,14 @@ const Solution = (() => {
           <div class="solution-header-subtitle">agentic assistant</div>
         </div>
         <div class="solution-header-actions">
-          <button class="solution-header-btn" id="solutionClearBtn" title="Clear conversation">${ICONS.clear}</button>
-          <button class="solution-header-btn" id="solutionCloseBtn" title="Close (Esc)">${ICONS.close}</button>
+          <button class="solution-header-btn" id="solutionNewChatBtn" title="New chat">${ICONS.newchat}</button>
+          <button class="solution-header-btn" id="solutionHistoryBtn" title="Previous chats">${ICONS.history}</button>
+          <button class="solution-header-btn" id="solutionCloseBtn" title="Collapse panel">${ICONS.collapse}</button>
         </div>
+      </div>
+      <div class="solution-history-drawer" id="solutionHistoryDrawer">
+        <div class="solution-history-header">Previous Chats</div>
+        <div class="solution-history-list" id="solutionHistoryList"></div>
       </div>
       <div class="solution-status">
         <div class="solution-status-dot" id="solutionStatusDot"></div>
@@ -102,7 +104,8 @@ const Solution = (() => {
 
     // Events
     document.getElementById('solutionCloseBtn').addEventListener('click', close);
-    document.getElementById('solutionClearBtn').addEventListener('click', clearConversation);
+    document.getElementById('solutionNewChatBtn').addEventListener('click', newChat);
+    document.getElementById('solutionHistoryBtn').addEventListener('click', toggleHistory);
     sendBtn.addEventListener('click', handleSend);
 
     textarea.addEventListener('input', () => {
@@ -129,6 +132,12 @@ const Solution = (() => {
     });
 
     showWelcome();
+    loadHistory();
+
+    // Restore chat panel state from localStorage
+    if (localStorage.getItem('solutionChatOpen') === 'true') {
+      open();
+    }
   }
 
   // ── Auto-grow textarea ────────────────────────────────────
@@ -141,12 +150,14 @@ const Solution = (() => {
   function open() {
     isOpen = true;
     document.body.classList.add('solution-open');
+    localStorage.setItem('solutionChatOpen', 'true');
     setTimeout(() => textarea.focus(), 350);
   }
 
   function close() {
     isOpen = false;
     document.body.classList.remove('solution-open');
+    localStorage.setItem('solutionChatOpen', 'false');
   }
 
   function toggle() {
@@ -189,7 +200,124 @@ const Solution = (() => {
     showWelcome();
     setStatus('ready');
   }
+  // ── Chat History (localStorage) ──────────────────────
+const HISTORY_KEY = 'solution_chat_history';
+const MAX_HISTORY = 20;
 
+function loadHistory() {
+  try {
+    chatHistory = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+  } catch { chatHistory = []; }
+}
+
+function saveHistory() {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(chatHistory.slice(0, MAX_HISTORY)));
+  } catch {}
+}
+
+function saveCurrentChat() {
+  if (!messages.length) return;
+  // Derive title from first user message
+  const firstUser = messages.find(m => m.role === 'user');
+  const title = firstUser ? firstUser.content.substring(0, 50) + (firstUser.content.length > 50 ? '…' : '') : 'Chat';
+
+  // Update existing or create new
+  const existing = chatHistory.findIndex(c => c.id === conversationId);
+  const entry = { id: conversationId, title, messages: messages.slice(), ts: Date.now() };
+  if (existing >= 0) {
+    chatHistory[existing] = entry;
+  } else {
+    chatHistory.unshift(entry);
+  }
+  // Trim
+  chatHistory = chatHistory.slice(0, MAX_HISTORY);
+  saveHistory();
+}
+
+function newChat() {
+  saveCurrentChat();
+  messages = [];
+  conversationId = Date.now();
+  showWelcome();
+  setStatus('ready');
+  closeHistory();
+}
+
+function loadChat(id) {
+  saveCurrentChat();
+  const chat = chatHistory.find(c => c.id === id);
+  if (!chat) return;
+  conversationId = chat.id;
+  messages = chat.messages.slice();
+  // Re-render all messages
+  messagesEl.innerHTML = '';
+  messages.forEach((msg, idx) => {
+    const div = document.createElement('div');
+    div.className = 'msg';
+    div.dataset.msgIndex = idx;
+    div.innerHTML = `
+      <div class="msg-avatar ${msg.role === 'user' ? 'user' : 'bot'}">
+        ${msg.role === 'user' ? ICONS.user : ICONS.bot}
+      </div>
+      <div class="msg-body">
+        <div class="msg-sender ${msg.role === 'user' ? 'user-name' : 'bot-name'}">${msg.role === 'user' ? 'You' : 'Solution'}</div>
+        <div class="msg-content">${msg.role === 'user' ? escHtml(msg.content) : msg.content}</div>
+        <div class="msg-time">${msg.time || ''}</div>
+      </div>
+      ${msg.role === 'user' ? `<button class="msg-edit-btn" onclick="Solution.editMessage(${idx})" title="Edit">${ICONS.edit}</button>` : ''}
+    `;
+    messagesEl.appendChild(div);
+  });
+  scrollToBottom();
+  setStatus('ready');
+  closeHistory();
+}
+
+function deleteChat(id, e) {
+  e.stopPropagation();
+  chatHistory = chatHistory.filter(c => c.id !== id);
+  saveHistory();
+  renderHistoryList();
+}
+
+function toggleHistory() {
+  historyOpen ? closeHistory() : openHistory();
+}
+
+function openHistory() {
+  historyOpen = true;
+  renderHistoryList();
+  document.getElementById('solutionHistoryDrawer').classList.add('open');
+  document.getElementById('solutionHistoryBtn').classList.add('active');
+}
+
+function closeHistory() {
+  historyOpen = false;
+  document.getElementById('solutionHistoryDrawer').classList.remove('open');
+  document.getElementById('solutionHistoryBtn').classList.remove('active');
+}
+
+function renderHistoryList() {
+  const list = document.getElementById('solutionHistoryList');
+  if (!chatHistory.length) {
+    list.innerHTML = '<div class="solution-history-empty">No previous chats</div>';
+    return;
+  }
+  list.innerHTML = chatHistory.map(c => {
+    const date = new Date(c.ts);
+    const when = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const msgCount = c.messages.filter(m => m.role === 'user').length;
+    const isActive = c.id === conversationId;
+    return `<div class="solution-history-item${isActive ? ' active' : ''}" onclick="Solution.loadChat(${c.id})">
+      <div class="sh-item-body">
+        <div class="sh-item-title">${escHtml(c.title)}</div>
+        <div class="sh-item-meta">${when} · ${msgCount} message${msgCount !== 1 ? 's' : ''}</div>
+      </div>
+      <button class="sh-item-delete" onclick="Solution.deleteChat(${c.id}, event)" title="Delete">${ICONS.close}</button>
+    </div>`;
+  }).join('');
+}
   // ── Handle Send ───────────────────────────────────────────
   async function handleSend() {
     const text = textarea.value.trim();
@@ -201,6 +329,7 @@ const Solution = (() => {
 
     // Add user message
     addMessage('user', text);
+    saveCurrentChat();   // persist after each user message
     textarea.value = '';
     autoGrow();
     sendBtn.disabled = true;
@@ -215,9 +344,12 @@ const Solution = (() => {
     const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const msg = { role, content, time, ...extras };
     messages.push(msg);
+    const msgIndex = messages.length - 1;
+    saveCurrentChat();   // persist after bot response too
 
     const div = document.createElement('div');
     div.className = 'msg';
+    div.dataset.msgIndex = msgIndex;
     div.innerHTML = `
       <div class="msg-avatar ${role === 'user' ? 'user' : 'bot'}">
         ${role === 'user' ? ICONS.user : ICONS.bot}
@@ -229,6 +361,7 @@ const Solution = (() => {
         ${extras.results ? renderResults(extras.results) : ''}
         <div class="msg-time">${time}</div>
       </div>
+      ${role === 'user' ? `<button class="msg-edit-btn" onclick="Solution.editMessage(${msgIndex})" title="Edit">${ICONS.edit}</button>` : ''}
     `;
     messagesEl.appendChild(div);
     scrollToBottom();
@@ -680,6 +813,33 @@ const Solution = (() => {
     return new Promise(r => setTimeout(r, ms));
   }
 
+  // ── Edit message ──────────────────────────────────────────
+  function editMessage(index) {
+    if (isThinking) return;
+    const msg = messages[index];
+    if (!msg || msg.role !== 'user') return;
+
+    // Remove this message and everything after it from state
+    messages = messages.slice(0, index);
+    saveCurrentChat();
+
+    // Remove the corresponding DOM elements
+    const allMsgEls = messagesEl.querySelectorAll('.msg');
+    for (let i = allMsgEls.length - 1; i >= 0; i--) {
+      const elIdx = parseInt(allMsgEls[i].dataset.msgIndex, 10);
+      if (elIdx >= index) allMsgEls[i].remove();
+    }
+
+    // If no messages left, show welcome
+    if (!messages.length) showWelcome();
+
+    // Put the text into the textarea for editing
+    textarea.value = msg.content;
+    autoGrow();
+    sendBtn.disabled = false;
+    textarea.focus();
+  }
+
   function scrollToBottom() {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
@@ -691,6 +851,9 @@ const Solution = (() => {
     close,
     toggle,
     askSuggestion,
+    loadChat,
+    deleteChat,
+    editMessage,
   };
 })();
 

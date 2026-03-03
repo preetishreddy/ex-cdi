@@ -1,0 +1,433 @@
+/* ============================================================
+   EX-CDI — Integrations Page Styles
+   ============================================================ */
+
+/* ── Content area ────────────────────────────────────────── */
+.ig-content {
+  padding: 24px 28px 40px;
+}
+
+/* ── Integration Cards Grid ──────────────────────────────── */
+.ig-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.ig-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  overflow: hidden;
+}
+.ig-card:hover {
+  border-color: var(--border-bright);
+  box-shadow: 0 4px 24px rgba(30,143,255,0.08);
+}
+
+/* ── Card Header ─────────────────────────────────────────── */
+.ig-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 14px;
+}
+
+.ig-card-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ig-card-icon svg {
+  width: 20px; height: 20px;
+  stroke: #fff; fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ig-card-icon.jira { background: linear-gradient(135deg, #2684ff, #0052cc); }
+.ig-card-icon.confluence { background: linear-gradient(135deg, #36b37e, #00875a); }
+.ig-card-icon.github { background: linear-gradient(135deg, #8b5cf6, #6c5ce7); }
+
+.ig-card-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.ig-card-subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.3px;
+}
+
+.ig-card-status {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+}
+.ig-card-status.connected { color: var(--success); }
+.ig-card-status.disconnected { color: var(--danger); }
+.ig-status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ── Card Stats ──────────────────────────────────────────── */
+.ig-card-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.ig-stat {
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 6px;
+  gap: 2px;
+}
+.ig-stat-num {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.ig-stat-label {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* ── Card Actions ────────────────────────────────────────── */
+.ig-card-actions {
+  display: flex;
+  gap: 8px;
+  padding: 14px 20px 18px;
+}
+.ig-action-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--secondary);
+  transition: all 0.15s;
+  text-align: center;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ig-action-btn:hover {
+  background: var(--surface2);
+  color: var(--text);
+  border-color: var(--border-bright);
+}
+.ig-action-btn.primary {
+  background: linear-gradient(135deg, var(--accent), #6c5ce7);
+  border-color: rgba(108,92,231,0.3);
+  color: #fff;
+}
+.ig-action-btn.primary:hover {
+  box-shadow: 0 2px 12px rgba(30,143,255,0.3);
+}
+
+/* ── Detail Section (expandable table area) ──────────────── */
+.ig-detail-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.3s;
+  margin-top: 0;
+}
+.ig-detail-section.open {
+  max-height: 2000px;
+  opacity: 1;
+  margin-top: 0;
+}
+
+.ig-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ig-detail-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.ig-detail-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ig-search {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--font-body);
+  outline: none;
+  width: 200px;
+  transition: border-color 0.15s;
+}
+.ig-search::placeholder { color: var(--muted); }
+.ig-search:focus { border-color: var(--accent); }
+.ig-filter {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  outline: none;
+}
+.ig-filter option { background: var(--bg); color: var(--text); }
+.ig-close-btn {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.ig-close-btn:hover {
+  background: rgba(255,77,106,0.1);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.ig-detail-body {
+  padding: 0;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+/* ── Table ───────────────────────────────────────────────── */
+.ig-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ig-table thead th {
+  padding: 10px 16px;
+  text-align: left;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(4,10,24,0.3);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.ig-table tbody tr {
+  border-bottom: 1px solid rgba(56,140,220,0.06);
+  transition: background 0.1s;
+}
+.ig-table tbody tr:hover {
+  background: rgba(30,143,255,0.04);
+}
+.ig-table td {
+  padding: 10px 16px;
+  color: var(--text);
+  vertical-align: top;
+}
+.ig-table .cell-key {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.ig-table .cell-summary {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ig-table .cell-meta {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ── Status badges ───────────────────────────────────────── */
+.ig-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-family: var(--font-mono);
+}
+.ig-badge.done { background: rgba(0,212,138,0.12); color: var(--success); }
+.ig-badge.in-progress { background: rgba(30,143,255,0.12); color: var(--accent); }
+.ig-badge.todo { background: rgba(122,156,198,0.12); color: var(--secondary); }
+.ig-badge.blocked { background: rgba(255,77,106,0.12); color: var(--danger); }
+.ig-badge.review { background: rgba(162,155,254,0.12); color: var(--accent2); }
+
+/* Priority indicators */
+.ig-priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ig-priority-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+.ig-priority.highest .ig-priority-dot, .ig-priority.critical .ig-priority-dot { background: var(--danger); }
+.ig-priority.high .ig-priority-dot { background: var(--warn); }
+.ig-priority.medium .ig-priority-dot { background: var(--accent); }
+.ig-priority.low .ig-priority-dot { background: var(--success); }
+.ig-priority.lowest .ig-priority-dot { background: var(--muted); }
+
+/* ── Confluence page cards in detail ─────────────────────── */
+.ig-page-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  padding: 16px;
+}
+.ig-page-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  cursor: default;
+}
+.ig-page-card:hover {
+  border-color: var(--border-bright);
+  box-shadow: 0 2px 12px rgba(30,143,255,0.06);
+}
+.ig-page-card-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ig-page-card-meta {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.ig-page-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ig-page-label {
+  font-size: 10px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: rgba(30,143,255,0.08);
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+/* ── Commit rows ─────────────────────────────────────────── */
+.ig-commit-msg {
+  font-size: 13px;
+  color: var(--text);
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ig-commit-sha {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: rgba(30,143,255,0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.ig-commit-files {
+  font-size: 11px;
+  color: var(--muted);
+}
+.ig-commit-additions { color: var(--success); }
+.ig-commit-deletions { color: var(--danger); }
+
+/* ── Empty state ─────────────────────────────────────────── */
+.ig-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 40px 20px;
+  font-size: 13px;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .ig-cards {
+    grid-template-columns: 1fr;
+  }
+  .ig-card-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .ig-search { width: 140px; }
+}
+@media (max-width: 520px) {
+  .ig-content { padding: 16px; }
+  .ig-page-grid { grid-template-columns: 1fr; }
+}

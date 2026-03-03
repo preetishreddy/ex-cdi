@@ -67,11 +67,14 @@ async function fetchSprints() {
     // Skip animation — just fetch data and render immediately
     overlay.remove();
     try { await fetchSprints(); } catch (e) { console.error('Failed to fetch sprints:', e); }
-    document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
-    loadProjectTicketStats();
-    buildTimeline();
-    if (SPRINTS.length) {
-      selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+    applyPageRouting();
+    if (!isIntegrationsPage()) {
+      document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
+      loadProjectTicketStats();
+      buildTimeline();
+      if (SPRINTS.length) {
+        selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+      }
     }
     return;
   }
@@ -100,11 +103,14 @@ async function fetchSprints() {
   // Step 4 – hide overlay & render
   setTimeout(() => {
     overlay.classList.add('hidden');
-    document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
-    loadProjectTicketStats();
-    buildTimeline();
-    if (SPRINTS.length) {
-      selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+    applyPageRouting();
+    if (!isIntegrationsPage()) {
+      document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
+      loadProjectTicketStats();
+      buildTimeline();
+      if (SPRINTS.length) {
+        selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+      }
     }
     // Remove overlay from DOM after transition
     setTimeout(() => overlay.remove(), 600);
@@ -1204,9 +1210,10 @@ function updatePageTitle(pid) {
   if (!pid && projectsCache.length) pid = projectsCache[0].id;
   const project = projectsCache.find(p => p.id === pid);
   const titleEl = document.querySelector('.page-title');
+  const pageSuffix = isIntegrationsPage() ? 'Integrations' : 'Overview';
   if (titleEl && project) {
-    titleEl.textContent = project.name + ' Overview';
-    document.title = 'EX-CDI — ' + project.name + ' Overview';
+    titleEl.textContent = project.name + ' ' + pageSuffix;
+    document.title = 'EX-CDI — ' + project.name + ' ' + pageSuffix;
   }
 }
 
@@ -1281,3 +1288,213 @@ function renderProjectGoal() {
   banner.style.display = '';
 }
 window.renderProjectGoal = renderProjectGoal;
+
+// ── Integrations Page (inline within dashboard) ──────────────
+let igTicketsData = [];
+let igPagesData = [];
+let igCommitsData = [];
+let igCurrentSection = null;
+
+function isIntegrationsPage() {
+  return new URLSearchParams(window.location.search).get('page') === 'integrations';
+}
+
+// Toggle between overview and integrations content
+function applyPageRouting() {
+  const isIg = isIntegrationsPage();
+  const overviewEl = document.getElementById('overviewContent');
+  const igEl = document.getElementById('integrationsContent');
+  if (overviewEl) overviewEl.style.display = isIg ? 'none' : '';
+  if (igEl) igEl.style.display = isIg ? '' : 'none';
+  if (isIg) loadIntegrationsData();
+}
+
+async function loadIntegrationsData() {
+  const pid = new URLSearchParams(window.location.search).get('project');
+  const project = projectsCache.find(p => p.id === pid) || projectsCache[0];
+
+  // Set external links
+  if (project) {
+    if (project.jira_project_key) {
+      const el = document.getElementById('jiraDashboardLink');
+      if (el) { el.href = `https://your-domain.atlassian.net/jira/software/projects/${project.jira_project_key}/board`; }
+    }
+    if (project.confluence_space_key) {
+      const el = document.getElementById('confluenceLink');
+      if (el) { el.href = `https://your-domain.atlassian.net/wiki/spaces/${project.confluence_space_key}`; }
+    }
+    if (project.github_repo) {
+      const el = document.getElementById('githubRepoLink');
+      if (el) { el.href = `https://github.com/${project.github_repo}`; }
+    }
+  }
+
+  await Promise.all([loadIgJira(), loadIgConfluence(), loadIgGithub()]);
+  setupIgSearch();
+}
+
+async function loadIgJira() {
+  try {
+    const res = await fetch('/api/tickets/');
+    const data = await res.json();
+    igTicketsData = Array.isArray(data) ? data : (data.results || []);
+    const completed = igTicketsData.filter(t => ['done','closed','resolved','complete','completed'].includes(t.status?.toLowerCase())).length;
+    const inProgress = igTicketsData.filter(t => ['in progress','in review','in development'].includes(t.status?.toLowerCase())).length;
+    const blockers = igTicketsData.filter(t => t.priority?.toLowerCase() === 'highest' || t.priority?.toLowerCase() === 'critical').length;
+    const el = (id) => document.getElementById(id);
+    el('jiraTotalTickets').textContent = igTicketsData.length;
+    el('jiraCompleted').textContent = completed;
+    el('jiraInProgress').textContent = inProgress;
+    el('jiraBlockers').textContent = blockers;
+  } catch (e) { console.warn('Jira load error:', e); }
+}
+
+async function loadIgConfluence() {
+  try {
+    const res = await fetch('/api/pages/');
+    const data = await res.json();
+    igPagesData = Array.isArray(data) ? data : (data.results || []);
+    const spaces = new Set(igPagesData.map(p => p.space).filter(Boolean));
+    const authors = new Set(igPagesData.map(p => p.author).filter(Boolean));
+    const latest = igPagesData.length
+      ? igPagesData.reduce((a, b) => new Date(b.page_updated_date || 0) > new Date(a.page_updated_date || 0) ? b : a)
+      : null;
+    const el = (id) => document.getElementById(id);
+    el('confTotalPages').textContent = igPagesData.length;
+    el('confSpaces').textContent = spaces.size;
+    el('confAuthors').textContent = authors.size;
+    el('confLatest').textContent = latest ? igFmtDate(latest.page_updated_date) : '—';
+  } catch (e) { console.warn('Confluence load error:', e); }
+}
+
+async function loadIgGithub() {
+  try {
+    const res = await fetch('/api/commits/');
+    const data = await res.json();
+    igCommitsData = Array.isArray(data) ? data : (data.results || []);
+    const contributors = new Set(igCommitsData.map(c => c.author_name).filter(Boolean));
+    const totalFiles = igCommitsData.reduce((sum, c) => sum + (c.files?.length || 0), 0);
+    const latest = igCommitsData.length
+      ? igCommitsData.reduce((a, b) => new Date(b.commit_date || 0) > new Date(a.commit_date || 0) ? b : a)
+      : null;
+    const el = (id) => document.getElementById(id);
+    el('ghTotalCommits').textContent = igCommitsData.length;
+    el('ghContributors').textContent = contributors.size;
+    el('ghFilesChanged').textContent = totalFiles;
+    el('ghLatest').textContent = latest ? igFmtDate(latest.commit_date) : '—';
+  } catch (e) { console.warn('GitHub load error:', e); }
+}
+
+function showIgSection(type) {
+  igCurrentSection = type;
+  const section = document.getElementById('igDetailSection');
+  const title = document.getElementById('igDetailTitle');
+  const filter = document.getElementById('igFilter');
+  const search = document.getElementById('igSearch');
+  search.value = '';
+  document.querySelectorAll('.ig-card').forEach(c => c.classList.remove('active'));
+  document.querySelector(`.ig-card[data-source="${type}"]`)?.classList.add('active');
+  filter.innerHTML = '<option value="all">All</option>';
+
+  if (type === 'jira') {
+    title.textContent = 'Jira Tickets';
+    [...new Set(igTicketsData.map(t => t.status).filter(Boolean))].sort().forEach(s =>
+      filter.innerHTML += `<option value="${esc(s)}">${esc(s)}</option>`);
+    renderIgJiraTable(igTicketsData);
+  } else if (type === 'confluence') {
+    title.textContent = 'Confluence Pages';
+    [...new Set(igPagesData.map(p => p.space).filter(Boolean))].sort().forEach(s =>
+      filter.innerHTML += `<option value="${esc(s)}">${esc(s)}</option>`);
+    renderIgConfluenceGrid(igPagesData);
+  } else if (type === 'github') {
+    title.textContent = 'GitHub Commits';
+    [...new Set(igCommitsData.map(c => c.author_name).filter(Boolean))].sort().forEach(a =>
+      filter.innerHTML += `<option value="${esc(a)}">${esc(a)}</option>`);
+    renderIgCommitsTable(igCommitsData);
+  }
+  section.classList.add('open');
+  setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
+function hideIgSection() {
+  document.getElementById('igDetailSection').classList.remove('open');
+  document.querySelectorAll('.ig-card').forEach(c => c.classList.remove('active'));
+  igCurrentSection = null;
+}
+
+function setupIgSearch() {
+  const search = document.getElementById('igSearch');
+  const filter = document.getElementById('igFilter');
+  if (!search || !filter) return;
+  const doFilter = () => {
+    if (!igCurrentSection) return;
+    const q = search.value.toLowerCase().trim();
+    const f = filter.value;
+    if (igCurrentSection === 'jira') {
+      let items = igTicketsData;
+      if (f !== 'all') items = items.filter(t => t.status === f);
+      if (q) items = items.filter(t => (t.issue_key||'').toLowerCase().includes(q) || (t.summary||'').toLowerCase().includes(q) || (t.assignee||'').toLowerCase().includes(q));
+      renderIgJiraTable(items);
+    } else if (igCurrentSection === 'confluence') {
+      let items = igPagesData;
+      if (f !== 'all') items = items.filter(p => p.space === f);
+      if (q) items = items.filter(p => (p.title||'').toLowerCase().includes(q) || (p.author||'').toLowerCase().includes(q));
+      renderIgConfluenceGrid(items);
+    } else if (igCurrentSection === 'github') {
+      let items = igCommitsData;
+      if (f !== 'all') items = items.filter(c => c.author_name === f);
+      if (q) items = items.filter(c => (c.sha||'').toLowerCase().includes(q) || (c.message||'').toLowerCase().includes(q) || (c.author_name||'').toLowerCase().includes(q));
+      renderIgCommitsTable(items);
+    }
+  };
+  search.addEventListener('input', doFilter);
+  filter.addEventListener('change', doFilter);
+}
+
+function renderIgJiraTable(tickets) {
+  const body = document.getElementById('igDetailBody');
+  if (!tickets.length) { body.innerHTML = '<div class="ig-empty">No tickets found</div>'; return; }
+  body.innerHTML = `<table class="ig-table"><thead><tr><th>Key</th><th>Type</th><th>Summary</th><th>Status</th><th>Priority</th><th>Assignee</th><th>Story Pts</th><th>Updated</th></tr></thead><tbody>${tickets.map(t => `<tr><td class="cell-key">${esc(t.issue_key)}</td><td class="cell-meta">${esc(t.issue_type)}</td><td class="cell-summary" title="${esc(t.summary)}">${esc(t.summary)}</td><td>${igStatusBadge(t.status)}</td><td>${igPriorityBadge(t.priority)}</td><td class="cell-meta">${esc(t.assignee||'—')}</td><td class="cell-meta" style="text-align:center">${t.story_points??'—'}</td><td class="cell-meta">${igFmtDate(t.updated_date)}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function renderIgConfluenceGrid(pages) {
+  const body = document.getElementById('igDetailBody');
+  if (!pages.length) { body.innerHTML = '<div class="ig-empty">No pages found</div>'; return; }
+  body.innerHTML = `<div class="ig-page-grid">${pages.map(p => `<div class="ig-page-card"><div class="ig-page-card-title">${esc(p.title)}</div><div class="ig-page-card-meta"><span>Space: ${esc(p.space||'—')}</span><span>Author: ${esc(p.author||'—')}</span><span>v${p.version||1}</span><span>${igFmtDate(p.page_updated_date)}</span></div>${(p.labels&&p.labels.length)?`<div class="ig-page-labels">${p.labels.map(l=>`<span class="ig-page-label">${esc(l)}</span>`).join('')}</div>`:''}</div>`).join('')}</div>`;
+}
+
+function renderIgCommitsTable(commits) {
+  const body = document.getElementById('igDetailBody');
+  if (!commits.length) { body.innerHTML = '<div class="ig-empty">No commits found</div>'; return; }
+  body.innerHTML = `<table class="ig-table"><thead><tr><th>SHA</th><th>Message</th><th>Author</th><th>Files</th><th>Changes</th><th>Date</th></tr></thead><tbody>${commits.map(c => {
+    const adds = (c.files||[]).reduce((s,f)=>s+(f.additions||0),0);
+    const dels = (c.files||[]).reduce((s,f)=>s+(f.deletions||0),0);
+    return `<tr><td><span class="ig-commit-sha">${esc((c.sha||'').substring(0,7))}</span></td><td class="ig-commit-msg" title="${esc(c.message)}">${esc((c.message||'').substring(0,60))}${(c.message||'').length>60?'...':''}</td><td class="cell-meta">${esc(c.author_name)}</td><td class="ig-commit-files">${(c.files||[]).length} file${(c.files||[]).length!==1?'s':''}</td><td class="cell-meta"><span class="ig-commit-additions">+${adds}</span> <span class="ig-commit-deletions">-${dels}</span></td><td class="cell-meta">${igFmtDate(c.commit_date)}</td></tr>`;
+  }).join('')}</tbody></table>`;
+}
+
+function igStatusBadge(status) {
+  if (!status) return '<span class="ig-badge todo">—</span>';
+  const s = status.toLowerCase();
+  let cls = 'todo';
+  if (['done','closed','resolved','complete','completed'].includes(s)) cls = 'done';
+  else if (['in progress','in development'].includes(s)) cls = 'in-progress';
+  else if (['blocked','impediment'].includes(s)) cls = 'blocked';
+  else if (['in review','review','code review'].includes(s)) cls = 'review';
+  return `<span class="ig-badge ${cls}">${esc(status)}</span>`;
+}
+
+function igPriorityBadge(priority) {
+  if (!priority) return '<span class="cell-meta">—</span>';
+  return `<span class="ig-priority ${priority.toLowerCase()}"><span class="ig-priority-dot"></span>${esc(priority)}</span>`;
+}
+
+function igFmtDate(d) {
+  if (!d) return '—';
+  try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch { return '—'; }
+}
+
+// Expose integrations functions for onclick
+window.showIgSection = showIgSection;
+window.hideIgSection = hideIgSection;
+
