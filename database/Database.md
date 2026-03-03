@@ -369,8 +369,8 @@ Stores sprint information linked to projects.
 ```
 | sprint_number | name                    | start_date | end_date   | status    |
 |---------------|-------------------------|------------|------------|-----------|
-| 1             | Sprint 1 - Foundation   | 2026-01-06 | 2026-01-17 | completed |
-| 2             | Sprint 2 - Core Features| 2026-01-20 | 2026-01-31 | completed |
+| 1             | Sprint 1 - Foundation   | 2026-01-05 | 2026-01-16 | completed |
+| 2             | Sprint 2 - Core Features| 2026-01-19 | 2026-01-30 | completed |
 ```
 
 ---

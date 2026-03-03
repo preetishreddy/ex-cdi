@@ -110,16 +110,25 @@ async function fetchSprints() {
 })();
 
 // ── Helpers ──────────────────────────────────────────────────
-// Parse any date string as *local* — avoids UTC-midnight off-by-one.
-// Date-only "YYYY-MM-DD" → construct local; datetime with T/Z → new Date (local getters).
+// Parse any date string as a *local* Date, extracting the calendar date
+// from the string directly (no timezone shift).
+// "2026-01-05T00:00:00Z" → local Date for Jan 5
+// "2026-01-05"           → local Date for Jan 5
 function localDate(s) {
   const str = String(s || '');
-  if (str.includes('T') || str.includes('Z')) return new Date(str);
-  const [y, m, d] = str.split('-').map(Number);
-  return new Date(y, m - 1, d || 1);
+  // Always extract YYYY-MM-DD from the beginning of the string
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+  return new Date(str);
 }
 function localDateStr(s) {
-  const d = localDate(s);
+  const str = String(s || '');
+  // Fast path: extract YYYY-MM-DD directly from ISO strings
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+  const d = localDate(str);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -939,7 +948,9 @@ function openMeetingPopup(date, type, name, project, time, fallbackSummary) {
 function renderMeetingPopupContent(m, type, tc, typeIcon) {
   const popup = document.getElementById('meetingPopup');
   const title = m.title || 'Untitled Meeting';
-  const mDate = m.meeting_date ? new Date(m.meeting_date).toLocaleString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No date';
+  // Use localDate to avoid UTC→local timezone shift on date display
+  const mDateObj = m.meeting_date ? localDate(m.meeting_date) : null;
+  const mDate = mDateObj ? mDateObj.toLocaleString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No date';
   const duration = m.duration_seconds ? `${Math.round(m.duration_seconds / 60)} min` : '';
 
   const decisions = splitItems(m.key_decisions);
