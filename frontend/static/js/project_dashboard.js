@@ -1125,7 +1125,6 @@ async function loadProjectRail() {
       const overviewUrl = `project_dashboard.html?project=${p.id}&page=overview`;
       const integrationsUrl = `project_dashboard.html?project=${p.id}&page=integrations`;
       return `<div class="prj-item${isActive ? ' active-prj' : ''}" data-label="${esc(p.name)}" data-idx="${i}" onclick="window.location='${overviewUrl}'" onmouseenter="showProjectFlyout(event,${i})" onmouseleave="hideProjectFlyout()">`
-        + `<div class="prj-orb" style="background:${bg}">${initials}</div>`
         + `<span class="prj-name">${esc(p.name)}</span>`
         + `<span class="prj-status-dot s-${statusCls}"></span></div>`
         + `<div class="prj-sub-links${isActive ? ' expanded' : ''}">`
@@ -1191,60 +1190,12 @@ setTimeout(() => {
 setTimeout(() => loadProjectRail(), 120);
 
 // ── Project Members Card ─────────────────────────────────────
-function renderTeamCard() {
-  const card = document.getElementById('teamCard');
-  if (!card) return;
+// (Removed — team members now shown in project goal banner)
 
-  const pid = new URLSearchParams(window.location.search).get('project');
-  const project = projectsCache.find(p => p.id === pid) || projectsCache[0];
-  if (!project) { card.style.display = 'none'; return; }
-
-  const members = project.team_members || [];
-  const owner = project.owner || '';
-  if (!members.length && !owner) { card.style.display = 'none'; return; }
-
-  const GRADIENTS = [
-    'linear-gradient(135deg,#1e8fff,#6c5ce7)',
-    'linear-gradient(135deg,#00d48a,#1e8fff)',
-    'linear-gradient(135deg,#f5a623,#ff6b6b)',
-    'linear-gradient(135deg,#e84393,#fd79a8)',
-    'linear-gradient(135deg,#6c5ce7,#a29bfe)',
-    'linear-gradient(135deg,#f5a623,#ff8c00)',
-  ];
-
-  function memberInitials(name) {
-    return name.split(/\s+/).map(w => w[0]).join('').substring(0, 2).toUpperCase();
-  }
-
-  const membersHtml = members.map((name, i) => {
-    const isOwner = name === owner;
-    const bg = GRADIENTS[i % GRADIENTS.length];
-    return `<div class="tm-member${isOwner ? ' tm-owner' : ''}">
-      <div class="tm-avatar" style="background:${bg}">${memberInitials(name)}</div>
-      <div class="tm-info">
-        <div class="tm-name">${esc(name)}</div>
-        ${isOwner ? '<div class="tm-role">Owner</div>' : ''}
-      </div>
-    </div>`;
-  }).join('');
-
-  card.innerHTML = `
-    <div class="tm-header">
-      <div class="tm-header-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-      <div class="tm-header-text">
-        <div class="tm-title">Team</div>
-        <div class="tm-count">${members.length} member${members.length !== 1 ? 's' : ''}</div>
-      </div>
-    </div>
-    <div class="tm-list">${membersHtml}</div>`;
-  card.style.display = '';
-}
-
-// Render team card + project goal after project rail loads
+// Render project goal after project rail loads
 const _origLoadProjectRail = loadProjectRail;
 loadProjectRail = async function() {
   await _origLoadProjectRail();
-  renderTeamCard();
   renderProjectGoal();
 };
 
@@ -1286,8 +1237,7 @@ window.setTktFilter = setTktFilter;
 window.openMeetingPopup = openMeetingPopup;
 window.closeMeetingPopup = closeMeetingPopup;
 window.loadSprintMeetings = loadSprintMeetings;
-window.renderTeamCard = renderTeamCard;
-
+window.loadSprintMeetings = loadSprintMeetings;
 // ── Project Goal / Overview Banner ───────────────────────────
 function renderProjectGoal() {
   const banner = document.getElementById('projectGoalBanner');
@@ -1300,16 +1250,33 @@ function renderProjectGoal() {
   const endFmt = project.target_end_date ? new Date(project.target_end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
   const dateRange = startFmt && endFmt ? `${startFmt} — ${endFmt}` : '';
 
-  banner.innerHTML = `
-    <div class="pg-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></div>
-    <div class="pg-body">
-      <div class="pg-header">
-        <span class="pg-label">Project Goal</span>
-        ${project.status ? `<span class="pg-status pg-status--${project.status}">${project.status}</span>` : ''}
-        ${dateRange ? `<span class="pg-dates">${dateRange}</span>` : ''}
+  const members = project.team_members || [];
+  const owner = project.owner || '';
+  const teamToggle = members.length ? `
+      <button class="pg-team-toggle" onclick="document.getElementById('projectGoalBanner').querySelector('.pg-team').classList.toggle('open')">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Team (${members.length})</span>
+        <svg class="pg-chevron" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>` : '';
+
+  const teamList = members.length ? `
+    <div class="pg-team">
+      <div class="pg-team-list">
+        ${members.map(m => {
+          const initials = m.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+          const isOwner = m === owner;
+          return `<span class="pg-member${isOwner ? ' pg-member--owner' : ''}"><span class="pg-member-av">${initials}</span>${esc(m)}${isOwner ? '<span class="pg-owner-badge">Owner</span>' : ''}</span>`;
+        }).join('')}
       </div>
-      <div class="pg-text">${esc(project.description)}</div>
+    </div>` : '';
+
+  banner.innerHTML = `
+    <div class="pg-header-row">
+      <div class="pg-label">Goal</div>
+      ${teamToggle}
     </div>
+    <div class="pg-text">${esc(project.description)}</div>
+    ${teamList}
   `;
   banner.style.display = '';
 }
