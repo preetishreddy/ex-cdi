@@ -509,6 +509,69 @@ body.sidebar-collapsed .main {
   backdrop-filter: blur(16px); animation: fadeUp .4s ease both;
 }
 .detail-panel.visible { display: block; }
+
+/* === Content Row (detail + team sidebar) === */
+.content-row {
+  display: flex; gap: 20px; align-items: flex-start;
+}
+.content-row .detail-panel { flex: 1; min-width: 0; }
+
+/* === Team Members Card === */
+.team-card {
+  width: 220px; flex-shrink: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden;
+  backdrop-filter: blur(16px); animation: fadeUp .4s ease both;
+}
+.tm-header {
+  padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.tm-header-icon {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: linear-gradient(135deg, #1e8fff, #6c5ce7);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.tm-header-icon svg { width: 13px; height: 13px; fill: none; stroke: #fff; stroke-width: 2; }
+.tm-title {
+  font-family: var(--font-display); font-size: 12px; font-weight: 700; color: var(--text);
+}
+.tm-count {
+  font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 1px;
+}
+.tm-list {
+  display: flex; flex-direction: column;
+}
+.tm-member {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+.tm-member:last-child { border-bottom: none; }
+.tm-member:hover { background: var(--surface2); }
+.tm-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0;
+  letter-spacing: .3px;
+}
+.tm-name {
+  font-size: 12px; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tm-owner .tm-name { color: var(--accent); }
+.tm-role {
+  font-size: 10px; color: var(--muted); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 1100px) {
+  .content-row { flex-direction: column; }
+  .team-card { width: 100%; }
+  .tm-list { flex-direction: row; flex-wrap: wrap; }
+  .tm-member { flex: 1 1 180px; border-bottom: none; border-right: 1px solid var(--border); }
+  .tm-member:last-child { border-right: none; }
+}
 .detail-header { padding: 18px 24px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--border); }
 .detail-icon {
   width: 42px; height: 42px; border-radius: 10px;
@@ -761,21 +824,25 @@ body.sidebar-collapsed .main {
 .mp-summary-text { font-size: 13px; color: var(--secondary); line-height: 1.7; }
 .mp-summary-text strong { color: var(--text); }
 
-.mp-decisions-list, .mp-actions-list { display: flex; flex-direction: column; gap: 8px; }
+.mp-decisions-list, .mp-actions-list {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+.mp-decisions-list { border-left: 3px solid var(--accent); }
+.mp-actions-list  { border-left: 3px solid var(--success); }
 .mp-decision-item, .mp-action-item {
   display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 12px; background: var(--surface2);
-  border: 1px solid var(--border); border-radius: 10px;
-  font-size: 13px; color: var(--text); line-height: 1.5;
+  padding: 9px 14px;
+  font-size: 13px; color: var(--text); line-height: 1.55;
 }
-.mp-decision-icon, .mp-action-icon {
-  width: 24px; height: 24px; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+.mp-decision-item + .mp-decision-item,
+.mp-action-item + .mp-action-item {
+  border-top: 1px solid var(--border);
 }
-.mp-decision-icon { background: rgba(30,143,255,0.1); }
-.mp-decision-icon svg { width: 12px; height: 12px; stroke: var(--accent); fill: none; stroke-width: 2; }
-.mp-action-icon { background: rgba(0,212,138,0.1); }
-.mp-action-icon svg { width: 12px; height: 12px; stroke: var(--success); fill: none; stroke-width: 2; }
+.mp-decision-num, .mp-action-num {
+  flex-shrink: 0; font-weight: 700; font-size: 13px;
+  min-width: 16px; opacity: .45;
+}
 
 .mp-participants-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
 .mp-participant {

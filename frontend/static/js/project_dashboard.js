@@ -962,7 +962,7 @@ function renderMeetingPopupContent(m, type, tc, typeIcon) {
       <div class="mp-header-info">
         <div class="mp-type-badge" style="color:${tc}"><div class="mp-type-dot" style="background:${tc}"></div>${type.charAt(0).toUpperCase() + type.slice(1)}</div>
         <div class="mp-title">${esc(title)}</div>
-        <div class="mp-date">${mDate}${duration ? ' · ' + duration : ''}</div>
+        <div class="mp-date">${mDate}${duration ? ' · Duration: ' + duration : ''}</div>
       </div>
       <button class="mp-close" onclick="closeMeetingPopup()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
@@ -975,9 +975,9 @@ function renderMeetingPopupContent(m, type, tc, typeIcon) {
       ${decisions.length ? `
       <div class="mp-section">
         <div class="mp-section-label"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Key Decisions</div>
-        <div class="mp-decisions-list">${decisions.map(d => `
+        <div class="mp-decisions-list">${decisions.map((d, i) => `
           <div class="mp-decision-item">
-            <div class="mp-decision-icon"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/></svg></div>
+            <div class="mp-decision-num">${i + 1}.</div>
             <div>${esc(d)}</div>
           </div>`).join('')}
         </div>
@@ -985,9 +985,9 @@ function renderMeetingPopupContent(m, type, tc, typeIcon) {
       ${actions.length ? `
       <div class="mp-section">
         <div class="mp-section-label"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Action Items</div>
-        <div class="mp-actions-list">${actions.map(a => `
+        <div class="mp-actions-list">${actions.map((a, i) => `
           <div class="mp-action-item">
-            <div class="mp-action-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="mp-action-num">${i + 1}.</div>
             <div>${esc(a)}</div>
           </div>`).join('')}
         </div>
@@ -1134,6 +1134,63 @@ setTimeout(() => {
 // Load rail once sidebar renders
 setTimeout(() => loadProjectRail(), 120);
 
+// ── Project Members Card ─────────────────────────────────────
+function renderTeamCard() {
+  const card = document.getElementById('teamCard');
+  if (!card) return;
+
+  const pid = new URLSearchParams(window.location.search).get('project');
+  const project = projectsCache.find(p => p.id === pid) || projectsCache[0];
+  if (!project) { card.style.display = 'none'; return; }
+
+  const members = project.team_members || [];
+  const owner = project.owner || '';
+  if (!members.length && !owner) { card.style.display = 'none'; return; }
+
+  const GRADIENTS = [
+    'linear-gradient(135deg,#1e8fff,#6c5ce7)',
+    'linear-gradient(135deg,#00d48a,#1e8fff)',
+    'linear-gradient(135deg,#f5a623,#ff6b6b)',
+    'linear-gradient(135deg,#e84393,#fd79a8)',
+    'linear-gradient(135deg,#6c5ce7,#a29bfe)',
+    'linear-gradient(135deg,#f5a623,#ff8c00)',
+  ];
+
+  function memberInitials(name) {
+    return name.split(/\s+/).map(w => w[0]).join('').substring(0, 2).toUpperCase();
+  }
+
+  const membersHtml = members.map((name, i) => {
+    const isOwner = name === owner;
+    const bg = GRADIENTS[i % GRADIENTS.length];
+    return `<div class="tm-member${isOwner ? ' tm-owner' : ''}">
+      <div class="tm-avatar" style="background:${bg}">${memberInitials(name)}</div>
+      <div class="tm-info">
+        <div class="tm-name">${esc(name)}</div>
+        ${isOwner ? '<div class="tm-role">Owner</div>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  card.innerHTML = `
+    <div class="tm-header">
+      <div class="tm-header-icon"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <div class="tm-header-text">
+        <div class="tm-title">Team</div>
+        <div class="tm-count">${members.length} member${members.length !== 1 ? 's' : ''}</div>
+      </div>
+    </div>
+    <div class="tm-list">${membersHtml}</div>`;
+  card.style.display = '';
+}
+
+// Render team card after project rail loads
+const _origLoadProjectRail = loadProjectRail;
+loadProjectRail = async function() {
+  await _origLoadProjectRail();
+  renderTeamCard();
+};
+
 // ── Update page title with project name ──────────────────────
 function updatePageTitle(pid) {
   if (!pid && projectsCache.length) pid = projectsCache[0].id;
@@ -1172,3 +1229,4 @@ window.setTktFilter = setTktFilter;
 window.openMeetingPopup = openMeetingPopup;
 window.closeMeetingPopup = closeMeetingPopup;
 window.loadSprintMeetings = loadSprintMeetings;
+window.renderTeamCard = renderTeamCard;
