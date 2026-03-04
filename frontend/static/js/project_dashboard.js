@@ -24,6 +24,18 @@ function fetchTicketsOnce() {
   return _ticketsCachePromise;
 }
 
+// ── Global Decisions Cache (fetched once, enriched once) ─────
+let _decisionsCachePromise = null;
+function fetchDecisionsOnce() {
+  if (!_decisionsCachePromise) {
+    _decisionsCachePromise = fetch('/api/decisions/')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(data => Array.isArray(data) ? data : (data.results || []))
+      .then(async list => { await enrichDecisionSources(list); return list; });
+  }
+  return _decisionsCachePromise;
+}
+
 // ── Auth Guard ───────────────────────────────────────────────
 if (!sessionStorage.getItem('isLoggedIn')) {
   window.location.href = 'login.html';
@@ -81,16 +93,22 @@ async function fetchSprints() {
 
   // ── Fetch ALL data in parallel (sprints + projects + tickets) ──
   async function fetchAllData() {
-    const [, , tickets] = await Promise.all([
+    const [, , tickets, decisions] = await Promise.all([
       fetchSprints().catch(e => { console.error('Failed to fetch sprints:', e); }),
       loadProjectRail().catch(e => { console.error('Failed to load projects:', e); }),
       fetchTicketsOnce().catch(e => { console.error('Failed to fetch tickets:', e); return []; }),
+      fetchDecisionsOnce().catch(e => { console.error('Failed to fetch decisions:', e); return []; }),
     ]);
     // Populate the tickets cache so loadTickets / loadIgJira don't re-fetch
     if (tickets && tickets.length) {
       ticketsData = tickets;
       ticketsLoaded = true;
       igTicketsData = tickets;
+    }
+    // Populate the decisions cache so loadDecisions renders instantly
+    if (decisions && decisions.length) {
+      decisionsData = decisions;
+      decisionsLoaded = true;
     }
   }
 
@@ -525,19 +543,14 @@ function loadDecisions() {
 
   container.innerHTML = '<div class="decisions-loading"><div class="spinner"></div>Fetching decisions from API...</div>';
 
-  fetch('/api/decisions/')
-    .then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    })
-    .then(async data => {
-      decisionsData = Array.isArray(data) ? data : (data.results || []);
-      container.innerHTML = '<div class="decisions-loading"><div class="spinner"></div>Enriching source details...</div>';
-      await enrichDecisionSources(decisionsData);
+  fetchDecisionsOnce()
+    .then(data => {
+      decisionsData = data;
       decisionsLoaded = true;
       renderDecisions(container, decisionsData);
     })
     .catch(err => {
+      _decisionsCachePromise = null; // allow retry
       container.innerHTML = `<div class="decisions-error">⚠ Failed to load decisions: ${err.message}<br><button class="btn btn-ghost" style="margin-top:12px" onclick="window.decisionsLoaded=false;window.loadDecisions()">Retry</button></div>`;
     });
 }
@@ -562,7 +575,7 @@ function getCatIcon(category) {
 }
 
 // ── Current decisions view state ──
-let dtlViewMode = 'overall';   // 'overall' | 'grouped' | 'filter'
+let dtlViewMode = 'overall';   // 'overall' | 'grouped'
 let dtlActiveFilter = null;    // selected category in filter mode
 
 // ── Source detail block builder ──
@@ -629,7 +642,7 @@ function renderDecisionEntry(d, showCatBadge) {
           <div class="decision-uuid">${esc(d.source_id || '—')}</div>
         </div>
         <div class="dtl-meta-item">
-          <div class="dtl-meta-label">Confidence</div>
+          <div class="dtl-meta-label">Impact</div>
           <div class="decision-confidence">
             <div class="confidence-bar"><div class="confidence-fill" style="width:${confPct}%;background:${confColor}"></div></div>
             <span style="font-family:var(--font-mono);font-size:11px;color:${confColor}">${(d.confidence_score || 0).toFixed(2)}</span>
@@ -716,14 +729,17 @@ function renderFilter(decisions, activeCat) {
 
 // ── Main render controller ──
 function renderDecisions(container, decisions) {
-  if (!decisions.length) {
-    container.innerHTML = '<div class="decisions-empty">No decisions found.</div>';
+  // Only show decisions with confidence score >= 0.90
+  const highConf = decisions.filter(d => (d.confidence_score || 0) >= 0.90);
+
+  if (!highConf.length) {
+    container.innerHTML = '<div class="decisions-empty">No high-confidence decisions found.</div>';
     return;
   }
 
   // Toolbar
-  const totalCount = decisions.length;
-  const catCount = new Set(decisions.map(d => d.category || 'Uncategorized')).size;
+  const totalCount = highConf.length;
+  const catCount = new Set(highConf.map(d => d.category || 'Uncategorized')).size;
   const toolbar = `<div class="dtl-toolbar">
     <div class="dtl-toolbar-left">
       <button class="dtl-view-btn${dtlViewMode === 'overall' ? ' active' : ''}" onclick="window.setDtlView('overall')">
@@ -734,10 +750,6 @@ function renderDecisions(container, decisions) {
         <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         Grouped
       </button>
-      <button class="dtl-view-btn${dtlViewMode === 'filter' ? ' active' : ''}" onclick="window.setDtlView('filter')">
-        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-        Filter
-      </button>
     </div>
     <div class="dtl-toolbar-right">
       <span class="dtl-toolbar-stat">${totalCount} decisions</span>
@@ -747,9 +759,8 @@ function renderDecisions(container, decisions) {
 
   // Body based on current view mode
   let body = '';
-  if (dtlViewMode === 'overall')      body = renderOverall(decisions);
-  else if (dtlViewMode === 'grouped') body = renderGrouped(decisions);
-  else if (dtlViewMode === 'filter')  body = renderFilter(decisions, dtlActiveFilter);
+  if (dtlViewMode === 'overall')      body = renderOverall(highConf);
+  else if (dtlViewMode === 'grouped') body = renderGrouped(highConf);
 
   container.innerHTML = toolbar + `<div class="dtl-view-body">${body}</div>`;
 }
@@ -770,7 +781,7 @@ function setDtlFilter(cat) {
 // ── Tickets / Outcomes API Integration ───────────────────────
 let ticketsLoaded = false;
 let ticketsData = [];
-let tktViewMode = 'all';       // 'all' | 'sprint' | 'assignee'
+let tktViewMode = 'all';       // 'all' | 'assignee'
 let tktActiveFilter = null;
 
 const ISSUE_ICONS = {
@@ -881,10 +892,26 @@ function renderTicketsByAssignee(tickets, active) {
 // ── Main tickets render controller ──
 function renderTickets(container, tickets) {
   const completed = tickets.filter(t => t.status === 'Done' && t.is_completed === true);
-  if (!completed.length) { container.innerHTML = '<div class="decisions-empty">No completed outcomes found.</div>'; return; }
 
-  const totalPts = completed.reduce((s, t) => s + (t.story_points || 0), 0);
-  const memberCount = new Set(completed.map(t => t.assignee)).size;
+  // Filter by active sprint date range
+  const sp = SPRINTS.find(s => s.id === activeSprint);
+  let filtered = completed;
+  if (sp && sp.dates && sp.dates[0] && sp.dates[1]) {
+    const start = new Date(sp.dates[0]);
+    const end   = new Date(sp.dates[1]);
+    start.setHours(0,0,0,0);
+    end.setHours(23,59,59,999);
+    filtered = completed.filter(t => {
+      if (!t.resolved_date) return false;
+      const rd = new Date(t.resolved_date);
+      return rd >= start && rd <= end;
+    });
+  }
+
+  if (!filtered.length) { container.innerHTML = '<div class="decisions-empty">No completed outcomes found for this sprint.</div>'; return; }
+
+  const totalPts = filtered.reduce((s, t) => s + (t.story_points || 0), 0);
+  const memberCount = new Set(filtered.map(t => t.assignee)).size;
 
   const toolbar = `<div class="dtl-toolbar">
     <div class="dtl-toolbar-left">
@@ -892,26 +919,21 @@ function renderTickets(container, tickets) {
         <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
         All
       </button>
-      <button class="dtl-view-btn${tktViewMode === 'sprint' ? ' active' : ''}" onclick="window.setTktView('sprint')">
-        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        By Sprint
-      </button>
       <button class="dtl-view-btn${tktViewMode === 'assignee' ? ' active' : ''}" onclick="window.setTktView('assignee')">
         <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         By Assignee
       </button>
     </div>
     <div class="dtl-toolbar-right">
-      <span class="dtl-toolbar-stat">${completed.length} completed</span>
+      <span class="dtl-toolbar-stat">${filtered.length} completed</span>
       <span class="dtl-toolbar-stat">${totalPts} pts</span>
       <span class="dtl-toolbar-stat">${memberCount} members</span>
     </div>
   </div>`;
 
   let body = '';
-  if (tktViewMode === 'all')           body = renderTicketsAll(completed);
-  else if (tktViewMode === 'sprint')   body = renderTicketsBySprint(completed);
-  else if (tktViewMode === 'assignee') body = renderTicketsByAssignee(completed, tktActiveFilter);
+  if (tktViewMode === 'all')           body = renderTicketsAll(filtered);
+  else if (tktViewMode === 'assignee') body = renderTicketsByAssignee(filtered, tktActiveFilter);
 
   container.innerHTML = toolbar + `<div class="dtl-view-body">${body}</div>`;
 }
@@ -1168,7 +1190,7 @@ async function loadProjectRail() {
         + `<span class="prj-status-dot s-${statusCls}"></span></div>`
         + `<div class="prj-sub-links${isActive ? ' expanded' : ''}">`
         + `<a class="prj-sub-link${isActive && currentPage === 'overview' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','overview')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span class="nav-label">Overview</span></a>`
-        + `<a class="prj-sub-link${isActive && currentPage === 'integrations' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','integrations')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span class="nav-label">Integrations</span></a>`
+        + `<a class="prj-sub-link${isActive && currentPage === 'integrations' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','integrations')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span class="nav-label">Workspace</span></a>`
         + `</div>`;
     }).join('');
     // Update page title with the active project name
@@ -1301,7 +1323,7 @@ function updatePageTitle(pid) {
   if (!pid && projectsCache.length) pid = projectsCache[0].id;
   const project = projectsCache.find(p => p.id === pid);
   const titleEl = document.querySelector('.page-title');
-  const pageSuffix = isIntegrationsPage() ? 'Integrations' : 'Overview';
+  const pageSuffix = isIntegrationsPage() ? 'Workspace' : 'Overview';
   if (titleEl && project) {
     titleEl.textContent = project.name + ' ' + pageSuffix;
     document.title = 'EX-CDI — ' + project.name + ' ' + pageSuffix;

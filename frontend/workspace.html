@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EX-CDI — Integrations</title>
+<title>EX-CDI — Workspace</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="static/css/project_dashboard.css">
 <link rel="stylesheet" href="static/css/integrations.css">
@@ -18,7 +18,7 @@
     <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
     <span class="nav-label">Dashboard</span>
   </a>
-  <a class="sidebar-nav-item active" href="integrations.html">
+  <a class="sidebar-nav-item active" href="workspace.html">
     <svg viewBox="0 0 24 24"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/></svg>
     <span class="nav-label">Workspace</span>
   </a>
@@ -28,12 +28,11 @@
 <div class="main">
   <div class="topbar">
     <div>
-      <div class="page-title">Integrations</div>
+      <div class="page-title">Workspace</div>
       <div class="page-sub" id="topbarSub">Connected tools & data sources</div>
     </div>
   </div>
   <div class="content ig-content">
-
     <!-- Integration cards row -->
     <div class="ig-cards" id="igCards">
       <!-- Jira Card -->
@@ -59,7 +58,6 @@
           <button class="ig-action-btn" onclick="showSection('jira')">View Tickets</button>
         </div>
       </div>
-
       <!-- Confluence Card -->
       <div class="ig-card" data-source="confluence">
         <div class="ig-card-header">
@@ -83,7 +81,6 @@
           <button class="ig-action-btn" onclick="showSection('confluence')">View Pages</button>
         </div>
       </div>
-
       <!-- GitHub Card -->
       <div class="ig-card" data-source="github">
         <div class="ig-card-header">
@@ -108,7 +105,6 @@
         </div>
       </div>
     </div>
-
     <!-- Detail section (shows tickets / pages / commits when clicked) -->
     <div class="ig-detail-section" id="igDetailSection">
       <div class="ig-detail-header">
@@ -125,21 +121,17 @@
         <!-- Dynamically populated -->
       </div>
     </div>
-
   </div>
 </div>
-
 <script>
 // Sidebar toggle logic
 const sidebar = document.getElementById('sidebar');
 const toggleBtn = document.getElementById('sidebarToggle');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
-
 if (localStorage.getItem('sidebarCollapsed') === 'true') {
   sidebar.classList.add('collapsed');
   document.body.classList.add('sidebar-collapsed');
 }
-
 toggleBtn.addEventListener('click', () => {
   const isMobile = window.innerWidth <= 900;
   if (isMobile) {
@@ -151,12 +143,10 @@ toggleBtn.addEventListener('click', () => {
     localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
   }
 });
-
 sidebarOverlay.addEventListener('click', () => {
   sidebar.classList.remove('mobile-open');
   sidebarOverlay.classList.remove('visible');
 });
-
 // Load user info
 const user = JSON.parse(sessionStorage.getItem('user') || '{}');
 if (user.name) {
