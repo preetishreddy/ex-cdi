@@ -1,19 +1,12 @@
 """
-Onboarding AI Chatbot - Main Entry Point (Conversational Version)
+Onboarding AI Chatbot - Main Entry Point (Conversational Version v3)
 
-This is the main chatbot class that orchestrates:
-1. Conversation History - Remember previous messages
-2. Intent Classification - Understand what user is asking
-3. Retrieval - Fetch relevant data from PostgreSQL
-4. Context Building - Format data for LLM with history
-5. Response Generation - Generate helpful response
-
-Usage:
-    # From chatbot directory:
-    python main.py
-    
-    # From parent directory:
-    python -c "from chatbot import OnboardingChatbot; bot = OnboardingChatbot()"
+Fixes applied:
+1. Topic command now works as CLI command
+2. Better context retention for follow-ups
+3. Improved person query handling
+4. List all X queries support
+5. Role/topic to person mapping
 """
 
 from typing import Optional, List, Tuple, Dict
@@ -22,17 +15,40 @@ from datetime import datetime
 
 # Handle both package import and direct execution
 try:
-    # When imported as package (from chatbot import OnboardingChatbot)
     from .intent import IntentClassifier, ClassifiedIntent, IntentType
     from .retriever import SQLRetriever, Document
     from .context import ContextBuilder
     from .llm import BytezLLM
 except ImportError:
-    # When run directly (python -m main or python main.py)
     from intent import IntentClassifier, ClassifiedIntent, IntentType
     from retriever import SQLRetriever, Document
     from context import ContextBuilder
     from llm import BytezLLM
+
+
+# Role/Topic to Person mapping
+ROLE_PERSON_MAPPING = {
+    'frontend': ['Lisa Park'],
+    'front-end': ['Lisa Park'],
+    'ui': ['Lisa Park'],
+    'react': ['Lisa Park'],
+    'css': ['Lisa Park'],
+    'tailwind': ['Lisa Park'],
+    'backend': ['Marcus Thompson'],
+    'back-end': ['Marcus Thompson'],
+    'api': ['Marcus Thompson'],
+    'authentication': ['Marcus Thompson'],
+    'auth': ['Marcus Thompson'],
+    'jwt': ['Marcus Thompson'],
+    'database': ['Sarah Chen', 'Marcus Thompson'],
+    'db': ['Sarah Chen', 'Marcus Thompson'],
+    'schema': ['Sarah Chen'],
+    'devops': ['Dave Rossi'],
+    'ci/cd': ['Dave Rossi'],
+    'cicd': ['Dave Rossi'],
+    'pipeline': ['Dave Rossi'],
+    'deployment': ['Dave Rossi'],
+}
 
 
 @dataclass
@@ -43,6 +59,7 @@ class Message:
     timestamp: datetime = field(default_factory=datetime.now)
     intent: str = None
     entities: List[str] = field(default_factory=list)
+    topic: str = None
     
     def to_dict(self) -> Dict:
         return {
@@ -50,129 +67,156 @@ class Message:
             'content': self.content,
             'timestamp': self.timestamp.isoformat(),
             'intent': self.intent,
-            'entities': self.entities
+            'entities': self.entities,
+            'topic': self.topic
         }
 
 
 class ConversationHistory:
     """
     Manages conversation history for multi-turn conversations.
-    
-    Features:
-    - Stores messages with metadata
-    - Extracts context from recent turns
-    - Resolves references ("it", "that", "they")
-    - Limits history to avoid token overflow
     """
     
-    MAX_HISTORY_TURNS = 10  # Keep last N exchanges
+    MAX_HISTORY_TURNS = 10
     
     def __init__(self):
         self.messages: List[Message] = []
         self.current_topic: str = None
         self.current_entities: List[str] = []
+        self.topic_stack: List[str] = []
+        self.last_response_entities: List[str] = []  # NEW: Track entities mentioned in last response
     
-    def add_user_message(self, content: str, intent: str = None, entities: List[str] = None):
+    def add_user_message(self, content: str, intent: str = None, entities: List[str] = None, topic: str = None):
         """Add a user message to history."""
+        if entities and len(entities) > 0:
+            new_topic = entities[0]
+            if new_topic and new_topic.lower() not in ['', 'none']:
+                self.current_topic = new_topic
+                self.current_entities = entities
+                if not self.topic_stack or self.topic_stack[-1].lower() != new_topic.lower():
+                    self.topic_stack.append(new_topic)
+                    if len(self.topic_stack) > 5:
+                        self.topic_stack = self.topic_stack[-5:]
+        
         message = Message(
             role='user',
             content=content,
             intent=intent,
-            entities=entities or []
+            entities=entities or [],
+            topic=self.current_topic
         )
         self.messages.append(message)
-        
-        # Update current context
-        if entities:
-            self.current_entities = entities
-        if intent:
-            self.current_topic = intent
-        
         self._trim_history()
     
-    def add_assistant_message(self, content: str):
+    def add_assistant_message(self, content: str, mentioned_entities: List[str] = None):
         """Add an assistant response to history."""
         message = Message(
             role='assistant',
-            content=content
+            content=content,
+            topic=self.current_topic
         )
         self.messages.append(message)
+        
+        # Track entities mentioned in response for follow-up questions
+        if mentioned_entities:
+            self.last_response_entities = mentioned_entities
+        
         self._trim_history()
     
     def _trim_history(self):
-        """Keep only recent messages to manage token limits."""
-        max_messages = self.MAX_HISTORY_TURNS * 2  # User + Assistant pairs
+        """Keep only recent messages."""
+        max_messages = self.MAX_HISTORY_TURNS * 2
         if len(self.messages) > max_messages:
             self.messages = self.messages[-max_messages:]
     
     def get_context_summary(self) -> str:
-        """Get a summary of recent conversation for context."""
+        """Get a summary of recent conversation."""
         if not self.messages:
             return ""
         
         summary_parts = []
-        
-        # Get last few exchanges
-        recent = self.messages[-6:]  # Last 3 exchanges
+        recent = self.messages[-6:]
         
         for msg in recent:
             role = "User" if msg.role == 'user' else "Assistant"
-            # Truncate long messages
-            content = msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
+            content = msg.content[:300] + "..." if len(msg.content) > 300 else msg.content
             summary_parts.append(f"{role}: {content}")
         
         return "\n".join(summary_parts)
     
-    def get_recent_entities(self) -> List[str]:
-        """Get entities mentioned in recent conversation."""
-        entities = set()
-        
-        for msg in self.messages[-6:]:
-            entities.update(msg.entities)
-        
-        # Add current entities
-        entities.update(self.current_entities)
-        
-        return list(entities)
-    
-    def get_last_user_query(self) -> Optional[str]:
-        """Get the last user query."""
+    def get_last_assistant_response(self) -> Optional[str]:
+        """Get the last assistant response for context."""
         for msg in reversed(self.messages):
-            if msg.role == 'user':
+            if msg.role == 'assistant':
                 return msg.content
         return None
     
-    def resolve_references(self, query: str) -> str:
-        """
-        Resolve pronouns and references using conversation context.
+    def get_current_topic_context(self) -> str:
+        """Get context about the current topic."""
+        if not self.current_topic:
+            return ""
+        return f"Current topic: {self.current_topic}"
+    
+    def get_recent_entities(self) -> List[str]:
+        """Get entities from recent conversation."""
+        result = list(self.current_entities) if self.current_entities else []
         
-        Examples:
-        - "Tell me more about it" → "Tell me more about React"
-        - "Who else worked on that?" → "Who else worked on authentication?"
-        """
-        # Reference words to check
-        reference_words = ['it', 'that', 'this', 'they', 'them', 'those', 'the decision', 'the ticket']
+        # Add entities from last response
+        for entity in self.last_response_entities:
+            if entity.lower() not in [e.lower() for e in result]:
+                result.append(entity)
         
+        # Add from recent messages
+        seen = set(e.lower() for e in result)
+        for msg in self.messages[-4:]:
+            for entity in msg.entities:
+                if entity.lower() not in seen:
+                    result.append(entity)
+                    seen.add(entity.lower())
+        
+        return result
+    
+    def resolve_references(self, query: str) -> Tuple[str, List[str]]:
+        """Resolve pronouns and references."""
         query_lower = query.lower()
+        inferred_entities = []
         
-        # Check if query contains reference words
-        has_reference = any(ref in query_lower for ref in reference_words)
+        reference_patterns = [
+            'it', 'that', 'this', 'them', 'they', 'those',
+            'that decision', 'the decision', 'that ticket', 'the ticket',
+            'alternatives', 'who made', 'who decided', 'when was', 'why was',
+            'tell me more', 'more about', 'what about', 'how about',
+            'who wrote', 'who authored', 'the author', 'who created'
+        ]
         
-        if has_reference and self.current_entities:
-            # Get the most recent/relevant entity
-            main_entity = self.current_entities[0] if self.current_entities else None
+        has_reference = any(pattern in query_lower for pattern in reference_patterns)
+        is_short_followup = len(query.split()) <= 6 and has_reference
+        
+        if (has_reference or is_short_followup) and self.current_entities:
+            inferred_entities = self.current_entities.copy()
             
-            if main_entity:
-                # Add context hint to query
-                return f"{query} (referring to: {main_entity})"
+            # Also add entities from last response
+            for entity in self.last_response_entities:
+                if entity not in inferred_entities:
+                    inferred_entities.append(entity)
+            
+            main_entity = self.current_entities[0]
+            if main_entity and main_entity.lower() not in query_lower:
+                return f"{query} (regarding: {main_entity})", inferred_entities
         
-        return query
+        return query, inferred_entities
+    
+    def get_last_topic(self) -> Optional[str]:
+        """Get the current topic."""
+        return self.current_topic
     
     def clear(self):
         """Clear conversation history."""
         self.messages = []
         self.current_topic = None
         self.current_entities = []
+        self.topic_stack = []
+        self.last_response_entities = []
     
     def __len__(self):
         return len(self.messages)
@@ -194,33 +238,12 @@ class ChatResponse:
 
 class OnboardingChatbot:
     """
-    Main chatbot class for the Onboarding AI project (Conversational Version).
-    
-    Orchestrates the full pipeline with conversation memory:
-    Query + History → Intent Classification → Retrieval → Context Building → LLM → Response
-    
-    Example:
-        bot = OnboardingChatbot()
-        
-        # First turn
-        response = bot.chat("Why did we choose React?")
-        print(response)
-        
-        # Follow-up (bot remembers context)
-        response = bot.chat("Who made that decision?")
-        print(response)  # Knows "that decision" = React decision
+    Main chatbot class with conversation memory.
     """
     
     def __init__(self, verbose: bool = False):
-        """
-        Initialize the chatbot.
-        
-        Args:
-            verbose: If True, print debug information
-        """
         self.verbose = verbose
         
-        # Initialize components
         self._log("Initializing chatbot components...")
         
         self.classifier = IntentClassifier()
@@ -235,52 +258,82 @@ class OnboardingChatbot:
         self.llm = BytezLLM()
         self._log("  ✓ LLM (Bytez/GPT-4o) loaded")
         
-        # Initialize conversation history
         self.history = ConversationHistory()
         self._log("  ✓ Conversation History initialized")
         
-        self._log("Chatbot ready! (Conversational Mode)")
+        self._log("Chatbot ready! (Conversational Mode v3)")
     
     def _log(self, message: str):
-        """Print debug message if verbose mode is on."""
         if self.verbose:
             print(message)
     
-    def chat(self, query: str) -> ChatResponse:
-        """
-        Process a user query and return a response.
-        Maintains conversation history for multi-turn conversations.
+    def _map_role_to_person(self, query: str, entities: List[str]) -> List[str]:
+        """Map role/topic mentions to person names."""
+        query_lower = query.lower()
+        additional_entities = []
         
-        Args:
-            query: The user's question
-            
-        Returns:
-            ChatResponse with answer and metadata
-        """
+        for role, persons in ROLE_PERSON_MAPPING.items():
+            if role in query_lower:
+                for person in persons:
+                    if person not in entities and person not in additional_entities:
+                        additional_entities.append(person)
+        
+        return additional_entities
+    
+    def _extract_entities_from_response(self, response: str) -> List[str]:
+        """Extract person names and key entities from response text."""
+        entities = []
+        
+        # Known person names
+        person_names = ['Sarah Chen', 'Marcus Thompson', 'Lisa Park', 'Priya Sharma', 'James O\'Brien', 'Dave Rossi']
+        for name in person_names:
+            if name in response:
+                entities.append(name)
+        
+        # Ticket IDs
+        import re
+        tickets = re.findall(r'ONBOARD-\d+', response)
+        entities.extend(tickets)
+        
+        return entities
+    
+    def chat(self, query: str) -> ChatResponse:
+        """Process a user query and return a response."""
         self._log(f"\n{'='*50}")
         self._log(f"Query: {query}")
-        self._log(f"Conversation Turn: {len(self.history) // 2 + 1}")
+        self._log(f"Turn: {len(self.history) // 2 + 1}")
+        self._log(f"Current Topic: {self.history.get_last_topic()}")
         self._log('='*50)
         
-        # Step 0: Resolve references from conversation history
-        resolved_query = self.history.resolve_references(query)
+        # Step 0: Resolve references
+        resolved_query, inferred_entities = self.history.resolve_references(query)
         if resolved_query != query:
-            self._log(f"\n0. Resolved references:")
-            self._log(f"   Original: {query}")
-            self._log(f"   Resolved: {resolved_query}")
+            self._log(f"\n0. Resolved: {resolved_query}")
+            self._log(f"   Inferred entities: {inferred_entities}")
         
         # Step 1: Classify intent
         self._log("\n1. Classifying intent...")
         intent = self.classifier.classify(resolved_query)
         
-        # Enhance entities with conversation context
-        all_entities = list(set(intent.entities + self.history.get_recent_entities()))
+        # Combine entities
+        all_entities = inferred_entities.copy()
+        for e in intent.entities:
+            if e not in all_entities:
+                all_entities.append(e)
+        
+        # Map role/topic to person names
+        role_persons = self._map_role_to_person(query, all_entities)
+        all_entities.extend(role_persons)
+        
+        # Use current topic if no entities found
+        if not all_entities and self.history.current_topic:
+            all_entities = [self.history.current_topic]
         
         self._log(f"   Intent: {intent.intent_type.value}")
         self._log(f"   Confidence: {intent.confidence:.2f}")
-        self._log(f"   Entities: {all_entities}")
+        self._log(f"   All Entities: {all_entities}")
         
-        # Step 2: Retrieve relevant documents
+        # Step 2: Retrieve documents
         self._log("\n2. Retrieving documents...")
         documents = self.retriever.retrieve(
             query=resolved_query,
@@ -292,36 +345,65 @@ class OnboardingChatbot:
         for doc in documents:
             self._log(f"   • {doc.source_type}: {doc.title[:40]}")
         
-        # Step 3: Build context with conversation history
+        # Step 3: Build context
         self._log("\n3. Building context...")
         context = self.context_builder.build_context(documents, intent.intent_type.value)
         
-        # Add conversation history to context
+        # Add conversation history and last response for context
         history_summary = self.history.get_context_summary()
-        if history_summary:
-            context = f"PREVIOUS CONVERSATION:\n{history_summary}\n\n---\n\nRELEVANT INFORMATION:\n{context}"
+        topic_context = self.history.get_current_topic_context()
+        last_response = self.history.get_last_assistant_response()
         
-        self._log(f"   Context length: {len(context)} chars")
-        self._log(f"   Includes history: {'Yes' if history_summary else 'No'}")
+        context_parts = []
+        if topic_context:
+            context_parts.append(topic_context)
+        if history_summary:
+            context_parts.append(f"PREVIOUS CONVERSATION:\n{history_summary}")
+        if last_response and len(last_response) < 1000:
+            context_parts.append(f"MY LAST RESPONSE (for follow-up context):\n{last_response[:800]}")
+        context_parts.append(f"RELEVANT INFORMATION:\n{context}")
+        
+        full_context = "\n\n---\n\n".join(context_parts)
+        
+        self._log(f"   Context length: {len(full_context)} chars")
         
         # Step 4: Generate response
         self._log("\n4. Generating response...")
-        prompt = self._build_conversational_prompt(context, query, intent.intent_type.value)
-        answer = self.llm.generate(prompt)
+        
+        has_real_content = len(documents) > 0 and not any(
+            doc.metadata.get('error') for doc in documents
+        )
+        
+        if has_real_content:
+            prompt = self._build_conversational_prompt(full_context, query, intent.intent_type.value)
+            answer = self.llm.generate(prompt)
+        else:
+            answer = self._generate_no_info_response(query, intent.intent_type.value, all_entities)
+        
         self._log(f"   Response length: {len(answer)} chars")
         
-        # Step 5: Update conversation history
+        # Step 5: Extract entities from response for follow-up tracking
+        response_entities = self._extract_entities_from_response(answer)
+        
+        # Step 6: Update history
+        primary_topic = all_entities[0] if all_entities else None
+        
         self.history.add_user_message(
             content=query,
             intent=intent.intent_type.value,
-            entities=intent.entities
+            entities=all_entities,
+            topic=primary_topic
         )
-        self.history.add_assistant_message(content=answer)
+        self.history.add_assistant_message(
+            content=answer,
+            mentioned_entities=response_entities
+        )
         
-        # Build response object
+        # Build response
         sources = list(set(
             f"{doc.source_type}:{doc.title[:30]}" 
             for doc in documents
+            if not doc.metadata.get('error')
         ))
         
         return ChatResponse(
@@ -333,93 +415,112 @@ class OnboardingChatbot:
             conversation_turn=len(self.history) // 2
         )
     
+    def _generate_no_info_response(self, query: str, intent_type: str, entities: List[str]) -> str:
+        """Generate an honest response when no information is found."""
+        
+        entity_str = ", ".join(entities) if entities else "this topic"
+        
+        responses = {
+            'status_query': f"I don't have specific status information about {entity_str} in my current data. You may want to check the project's Jira board for the most up-to-date ticket status.",
+            
+            'person_query': f"I don't have detailed information about {entity_str}'s contributions in my current data. The project tracking tools like Jira or GitHub would have the most accurate records.",
+            
+            'sprint_summary_query': f"I don't have detailed information about {entity_str} in my current data.",
+            
+            'ticket_query': f"I couldn't find information about {entity_str} in my current data. Please verify the ticket ID is correct.",
+            
+            'decision_query': f"I don't have specific information about decisions related to {entity_str} in my current data.",
+            
+            'meeting_query': f"I don't have information about meetings related to {entity_str} in my current data.",
+            
+            'howto_query': f"I don't have documentation about {entity_str} in my current data. Check the Confluence documentation for the most up-to-date guides.",
+            
+            'general_query': f"I don't have specific information about {entity_str} in my current data. Could you try rephrasing your question?",
+        }
+        
+        return responses.get(intent_type, responses['general_query'])
+    
     def _build_conversational_prompt(self, context: str, query: str, intent_type: str) -> str:
-        """Build a prompt that includes conversation awareness."""
+        """Build a prompt with conversation awareness."""
         
         intent_instructions = {
             'decision_query': "Focus on explaining the decision, its rationale, and alternatives considered.",
-            'person_query': "Focus on the person's contributions and involvement in the project.",
+            'person_query': "Focus on the person's contributions, commits, tickets, and role in the project.",
             'timeline_query': "Focus on chronological order and key milestones.",
             'howto_query': "Focus on providing clear, step-by-step instructions.",
-            'status_query': "Focus on current status, assignee, and any blockers.",
+            'status_query': "Focus on current status of tickets, completion rates, and any blockers.",
             'ticket_query': "Focus on ticket details, related work, and current state.",
             'meeting_query': "Focus on what was discussed, decisions made, and action items.",
+            'sprint_summary_query': "Provide a comprehensive sprint overview.",
+            'list_query': "List all items requested with key details.",
             'general_query': "Provide helpful information based on the context.",
         }
         
         instruction = intent_instructions.get(intent_type, intent_instructions['general_query'])
         
+        topic_instruction = ""
+        if self.history.current_topic:
+            topic_instruction = f"\nCURRENT TOPIC: '{self.history.current_topic}'. References like 'it', 'that', 'the author', 'who wrote it' refer to this topic."
+        
         prompt = f"""You are an AI assistant for the Employee Onboarding Portal project.
-You are having a CONVERSATION with a team member. Use the conversation history to understand context and references.
 
 INSTRUCTIONS: {instruction}
+{topic_instruction}
 
-IMPORTANT RULES:
-1. Only answer based on the provided context
-2. If the user refers to "it", "that", "they", etc., use the conversation history to understand what they mean
-3. If information is marked as "superseded", mention that newer decisions exist
-4. Always cite your sources (meeting name, ticket ID, etc.)
-5. If you don't have enough information, say so clearly
+CRITICAL RULES:
+1. ONLY answer based on the provided context - DO NOT make up information
+2. If the context mentions a person name, ticket ID, or fact, you can repeat it
+3. NEVER invent commit SHAs, ticket IDs, dates, or names not in the context
+4. For follow-up questions like "who wrote it?", look in the context AND in "MY LAST RESPONSE" section
+5. If you mentioned something in your last response and user asks about it, you can reference that
 6. Be concise but complete
-7. Maintain continuity with previous responses in the conversation
 
 CONTEXT:
 {context}
 
-CURRENT QUESTION: {query}
+QUESTION: {query}
 
-Provide a helpful, accurate answer that takes into account the conversation history:"""
+Answer based ONLY on the information above:"""
         
         return prompt
     
     def chat_simple(self, query: str) -> str:
-        """
-        Simple chat interface - returns just the answer string.
-        
-        Args:
-            query: The user's question
-            
-        Returns:
-            Answer string
-        """
-        response = self.chat(query)
-        return response.answer
+        """Simple chat interface."""
+        return self.chat(query).answer
     
     def get_intent(self, query: str) -> Tuple[str, float, List[str]]:
-        """
-        Get just the intent classification for a query.
-        
-        Returns:
-            Tuple of (intent_type, confidence, entities)
-        """
+        """Get intent classification."""
         intent = self.classifier.classify(query)
         return (intent.intent_type.value, intent.confidence, intent.entities)
     
     def clear_history(self):
-        """Clear conversation history to start fresh."""
+        """Clear conversation history."""
         self.history.clear()
         self._log("Conversation history cleared.")
     
     def get_conversation_length(self) -> int:
-        """Get the number of turns in current conversation."""
+        """Get the number of turns."""
         return len(self.history) // 2
     
+    def get_current_topic(self) -> Optional[str]:
+        """Get current topic."""
+        return self.history.get_last_topic()
+    
+    def get_current_entities(self) -> List[str]:
+        """Get current entities."""
+        return self.history.current_entities
+    
     def health_check(self) -> dict:
-        """
-        Check if all components are working.
-        
-        Returns:
-            Dict with status of each component
-        """
+        """Check component status."""
         status = {
             'classifier': 'ok',
             'retriever': 'ok',
             'context_builder': 'ok',
             'llm': self.llm.health_check(),
-            'conversation_history': f'{len(self.history)} messages'
+            'conversation_history': f'{len(self.history)} messages',
+            'current_topic': self.history.get_last_topic()
         }
         
-        # Test retriever
         try:
             docs = self.retriever.retrieve("test", "general_query", [], limit=1)
             status['retriever'] = 'ok'
@@ -436,40 +537,33 @@ Provide a helpful, accurate answer that takes into account the conversation hist
 def run_interactive():
     """Run an interactive chat session."""
     print("=" * 60)
-    print("🤖 ONBOARDING AI CHATBOT (Conversational)")
+    print("🤖 ONBOARDING AI CHATBOT (Conversational v3)")
     print("=" * 60)
-    print("\nWelcome! I'm here to help you understand the Employee")
-    print("Onboarding Portal project. I remember our conversation,")
-    print("so feel free to ask follow-up questions!")
-    print("\nAsk me about:")
-    print("  • Project decisions and their rationale")
-    print("  • Who worked on what")
-    print("  • How to set up the project")
-    print("  • Ticket status and details")
-    print("  • Meeting discussions")
+    print("\nWelcome! I remember our conversation.")
     print("\nCommands:")
-    print("  'quit'  - Exit the chatbot")
-    print("  'help'  - Show example questions")
-    print("  'clear' - Clear conversation history")
-    print("  'debug' - Toggle debug mode")
+    print("  'quit'   - Exit")
+    print("  'help'   - Example questions")
+    print("  'clear'  - Clear history")
+    print("  'debug'  - Toggle debug mode")
+    print("  'topic'  - Show current topic")
+    print("  'status' - Show bot status")
     print("")
     
     bot = OnboardingChatbot(verbose=False)
     
-    # Check health
     health = bot.health_check()
     if health['llm']['status'] != 'ok':
-        print(f"⚠️  Warning: LLM might not be working: {health['llm']['message']}")
+        print(f"⚠️  Warning: LLM issue: {health['llm']['message']}")
     
     while True:
         try:
-            # Show conversation turn
             turn = bot.get_conversation_length() + 1
             query = input(f"\n👤 You (turn {turn}): ").strip()
             
             if not query:
                 continue
             
+            # ========== CLI COMMANDS (checked BEFORE chat) ==========
             if query.lower() == 'quit':
                 print("\n👋 Goodbye!")
                 break
@@ -480,29 +574,43 @@ def run_interactive():
             
             if query.lower() == 'clear':
                 bot.clear_history()
-                print("🗑️  Conversation history cleared. Starting fresh!")
+                print("🗑️  History cleared!")
                 continue
             
             if query.lower() == 'debug':
                 bot.verbose = not bot.verbose
-                print(f"🔧 Debug mode: {'ON' if bot.verbose else 'OFF'}")
+                print(f"🔧 Debug: {'ON' if bot.verbose else 'OFF'}")
                 continue
             
-            # Get response
+            if query.lower() == 'topic':
+                topic = bot.get_current_topic()
+                entities = bot.get_current_entities()
+                print(f"\n📌 Current topic: {topic or '(none)'}")
+                print(f"📌 Current entities: {entities or '(none)'}")
+                print(f"📌 Conversation turns: {bot.get_conversation_length()}")
+                continue
+            
+            if query.lower() == 'status':
+                health = bot.health_check()
+                print("\n📊 Bot Status:")
+                for k, v in health.items():
+                    print(f"   {k}: {v}")
+                continue
+            
+            # ========== NORMAL CHAT ==========
             print("\n🤖 Assistant: ", end="")
             response = bot.chat(query)
             print(response.answer)
             
-            # Show metadata
-            print(f"\n   📊 Intent: {response.intent} | Confidence: {response.confidence:.0%}")
-            if response.sources:
-                print(f"   📚 Sources: {', '.join(response.sources[:3])}")
+            print(f"\n   [Intent: {response.intent} | Sources: {', '.join(response.sources[:3]) if response.sources else 'none'}]")
             
         except KeyboardInterrupt:
             print("\n\n👋 Goodbye!")
             break
         except Exception as e:
             print(f"\n❌ Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 
 def print_help():
@@ -511,23 +619,24 @@ def print_help():
     print("📖 EXAMPLE QUESTIONS")
     print("=" * 50)
     
-    print("\n💡 TIP: Try asking follow-up questions!")
-    print("   The chatbot remembers your conversation.\n")
-    
     examples = [
-        ("First, ask about a topic:", [
+        ("Decision queries:", [
             "Why did we choose React?",
-            "Tell me about ONBOARD-14",
-        ]),
-        ("Then, follow up:", [
             "Who made that decision?",
-            "What commits are related to it?",
-            "Tell me more about the alternatives",
+            "What alternatives were considered?",
         ]),
-        ("Other questions:", [
-            "What happened in Sprint 1?",
-            "How do I set up the project?",
+        ("Person queries:", [
             "What has Marcus been working on?",
+            "Who worked on the frontend?",
+            "Show me Lisa's commits",
+        ]),
+        ("Sprint queries:", [
+            "What's the summary of Sprint 1?",
+            "What's the status of Sprint 2?",
+        ]),
+        ("List queries:", [
+            "What Confluence pages are available?",
+            "List all decisions",
         ]),
     ]
     
@@ -539,56 +648,23 @@ def print_help():
     print("\n" + "=" * 50)
 
 
-# =========================================
-# TEST FUNCTION
-# =========================================
-
-def test_chatbot():
-    """Test the chatbot with sample queries including follow-ups."""
-    print("=" * 60)
-    print("CONVERSATIONAL CHATBOT TEST")
-    print("=" * 60)
-    
-    bot = OnboardingChatbot(verbose=True)
-    
-    # Test conversation with follow-ups
-    conversation = [
-        "Why did we choose React?",
-        "Who made that decision?",           # Follow-up - should understand "that decision"
-        "What alternatives were considered?", # Another follow-up
-        "Tell me about ONBOARD-14",          # New topic
-        "What commits are related to it?",   # Follow-up - "it" = ONBOARD-14
-    ]
-    
-    print("\n📝 Testing multi-turn conversation:\n")
-    
-    for i, query in enumerate(conversation, 1):
-        print(f"\n{'='*60}")
-        print(f"Turn {i}: {query}")
-        print("-" * 60)
-        
-        response = bot.chat(query)
-        
-        print(f"\n📝 ANSWER:\n{response.answer[:400]}...")
-        print(f"\n📊 Metadata:")
-        print(f"   Intent: {response.intent}")
-        print(f"   Confidence: {response.confidence:.2f}")
-        print(f"   Entities: {response.entities}")
-        print(f"   Turn: {response.conversation_turn}")
-    
-    print("\n" + "=" * 60)
-    print(f"Conversation completed: {bot.get_conversation_length()} turns")
-    print("=" * 60)
-
-
-# =========================================
-# ENTRY POINT
-# =========================================
-
 if __name__ == "__main__":
     import sys
     
     if len(sys.argv) > 1 and sys.argv[1] == "--test":
-        test_chatbot()
+        print("Running tests...")
+        bot = OnboardingChatbot(verbose=True)
+        
+        # Test person query
+        print("\n--- Test: Person Query ---")
+        r = bot.chat("What has Marcus been working on?")
+        print(f"Answer: {r.answer[:300]}...")
+        
+        # Test frontend mapping
+        print("\n--- Test: Frontend Role Mapping ---")
+        bot.clear_history()
+        r = bot.chat("Who worked on the frontend?")
+        print(f"Answer: {r.answer[:300]}...")
+        
     else:
         run_interactive()

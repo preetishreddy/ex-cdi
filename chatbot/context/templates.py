@@ -15,6 +15,7 @@ Your role is to help new team members and existing staff understand:
 - Technical architecture and setup
 - Current status of work
 - Meeting discussions and outcomes
+- Sprint summaries and progress
 
 IMPORTANT RULES:
 1. Only answer based on the provided context
@@ -45,6 +46,7 @@ Your role is to help understand:
 - Technical architecture and setup
 - Current status of work
 - Meeting discussions and outcomes
+- Sprint summaries and progress
 
 RULES:
 1. Only answer based on the provided context
@@ -177,6 +179,46 @@ USER QUESTION: {query}
 Summarize the meeting and its outcomes."""
 
     @staticmethod
+    def sprint_summary_query(context: str, query: str) -> str:
+        """NEW: Template for sprint summary queries."""
+        return f"""{SYSTEM_PROMPT}
+
+The user is asking for a SPRINT SUMMARY. Provide a comprehensive overview including:
+
+1. SPRINT OVERVIEW
+   - Sprint goal and duration
+   - Overall progress and completion rate
+
+2. KEY ACCOMPLISHMENTS
+   - Major tickets completed
+   - Important features delivered
+
+3. DECISIONS MADE
+   - Technical decisions during the sprint
+   - Rationale for key choices
+
+4. TEAM CONTRIBUTIONS
+   - Who worked on what
+   - Notable individual contributions
+
+5. CHALLENGES & BLOCKERS (if any)
+   - Issues encountered
+   - How they were resolved
+
+6. MEETINGS & DISCUSSIONS
+   - Important meetings held
+   - Key discussion points
+
+Format your response in a clear, structured way that gives the user a complete picture of what happened during the sprint.
+
+CONTEXT:
+{context}
+
+USER QUESTION: {query}
+
+Provide a comprehensive sprint summary:"""
+
+    @staticmethod
     def general_query(context: str, query: str) -> str:
         return f"""{SYSTEM_PROMPT}
 
@@ -214,6 +256,7 @@ Provide a helpful answer that takes into account the conversation history:"""
             'status_query': cls.status_query,
             'ticket_query': cls.ticket_query,
             'meeting_query': cls.meeting_query,
+            'sprint_summary_query': cls.sprint_summary_query,  # NEW
             'general_query': cls.general_query,
         }
         return templates.get(intent_type, cls.general_query)
