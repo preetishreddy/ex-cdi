@@ -7,7 +7,7 @@ export default defineConfig({
 
   server: {
     port: 3000,
-    open: '/project_overview',
+    open: '/login',
 
     // Proxy API calls to Django backend — no more CORS issues in dev
     proxy: {
@@ -26,6 +26,7 @@ export default defineConfig({
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
           const rewrites = {
+            '/':                 '/login.html',
             '/project_overview': '/project_dashboard.html',
             '/integrations':     '/integrations.html',
             '/login':            '/login.html',

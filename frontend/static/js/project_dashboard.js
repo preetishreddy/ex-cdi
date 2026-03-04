@@ -13,6 +13,11 @@ let activeSprint = null;
 let decisionsLoaded = false;
 let decisionsData = [];
 
+// ── Auth Guard ───────────────────────────────────────────────
+if (!sessionStorage.getItem('isLoggedIn')) {
+  window.location.href = 'login.html';
+}
+
 // ── User Setup ───────────────────────────────────────────────
 const userEmail = sessionStorage.getItem('userEmail') || 'user@company.atlassian.net';
 const jiraDomain = sessionStorage.getItem('jiraDomain') || 'company.atlassian.net';
@@ -247,7 +252,10 @@ function selectSprint(id) {
         <div class="ai-label"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg><span class="ai-dot"></span>AI Sprint Summary</div>
         <div class="ai-summary-text">${sp.aiSummary}</div>
       </div>
-      ${sp.goal ? `<div class="stat-mini-grid"><div class="stat-mini"><div class="stat-mini-val" style="color:var(--accent)">Goal</div><div class="stat-mini-label">${esc(sp.goal)}</div></div></div>` : ''}
+      ${sp.goal ? `<div class="sprint-goal-box">
+        <div class="sprint-goal-label">Sprint Goal</div>
+        <div class="sprint-goal-text">${esc(sp.goal)}</div>
+      </div>` : ''}
     </div>
 
     <div class="tab-content" id="dp-meetings">
@@ -1203,6 +1211,7 @@ const _origLoadProjectRail = loadProjectRail;
 loadProjectRail = async function() {
   await _origLoadProjectRail();
   renderProjectGoal();
+  renderProjectSummary();
 };
 
 // ── Update page title with project name ──────────────────────
@@ -1279,7 +1288,7 @@ function renderProjectGoal() {
 
   banner.innerHTML = `
     <div class="pg-header-row">
-      <div class="pg-label">Goal</div>
+      <div class="pg-label">Project Goal</div>
       ${teamToggle}
     </div>
     <div class="pg-text">${esc(project.description)}</div>
@@ -1288,6 +1297,84 @@ function renderProjectGoal() {
   banner.style.display = '';
 }
 window.renderProjectGoal = renderProjectGoal;
+
+// ── Project Summary Banner ───────────────────────────────────
+function renderProjectSummary() {
+  const banner = document.getElementById('projectSummaryBanner');
+  if (!banner) return;
+  const pid = new URLSearchParams(window.location.search).get('project');
+  const project = projectsCache.find(p => p.id === pid) || projectsCache[0];
+  if (!project) { banner.style.display = 'none'; return; }
+
+  const status = (project.status || 'active').replace(/_/g, ' ');
+  const statusCls = (project.status || 'active').toLowerCase().replace(/\s+/g, '_');
+
+  const startFmt = project.start_date ? new Date(project.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null;
+  const endFmt = project.target_end_date ? new Date(project.target_end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null;
+
+  const members = project.team_members || [];
+  const owner = project.owner || null;
+  const epicKey = project.epic_key || null;
+  const jiraKey = project.jira_project_key || null;
+  const repo = project.github_repo || null;
+  const confluence = project.confluence_space_key || null;
+  const tags = project.tags ? (typeof project.tags === 'string' ? project.tags.split(',').map(t => t.trim()) : project.tags) : [];
+  const description = project.description || null;
+
+  // Build a flowing prose summary
+  let sentences = [];
+
+  // Project name + description
+  if (description) {
+    sentences.push(`<strong>${esc(project.name)}</strong> is ${esc(description.charAt(0).toLowerCase() + description.slice(1))}`);
+  } else {
+    sentences.push(`<strong>${esc(project.name)}</strong> is currently <strong>${esc(status)}</strong>.`);
+  }
+
+  // Owner & team
+  if (owner && members.length) {
+    sentences.push(`The project is owned by <strong>${esc(owner)}</strong> and has a team of <strong>${members.length}</strong> member${members.length !== 1 ? 's' : ''}: ${members.map(m => esc(m)).join(', ')}.`);
+  } else if (owner) {
+    sentences.push(`The project is owned by <strong>${esc(owner)}</strong>.`);
+  } else if (members.length) {
+    sentences.push(`The team consists of <strong>${members.length}</strong> member${members.length !== 1 ? 's' : ''}: ${members.map(m => esc(m)).join(', ')}.`);
+  }
+
+  // Timeline
+  if (startFmt && endFmt) {
+    sentences.push(`It runs from <strong>${startFmt}</strong> to <strong>${endFmt}</strong>.`);
+  } else if (startFmt) {
+    sentences.push(`It started on <strong>${startFmt}</strong>.`);
+  }
+
+  // Integrations
+  const integrations = [];
+  if (jiraKey) integrations.push(`Jira project <strong>${esc(jiraKey)}</strong>`);
+  if (epicKey) integrations.push(`epic <strong>${esc(epicKey)}</strong>`);
+  if (repo) integrations.push(`GitHub repository <strong>${esc(repo)}</strong>`);
+  if (confluence) integrations.push(`Confluence space <strong>${esc(confluence)}</strong>`);
+  if (integrations.length) {
+    sentences.push(`The project is tracked through ${integrations.join(', ')}.`);
+  }
+
+  // Tags
+  if (tags.length) {
+    sentences.push(`Tagged as: ${tags.map(t => `<span class="ps-tag">${esc(t)}</span>`).join(' ')}.`);
+  }
+
+  banner.innerHTML = `
+    <div class="ps-header">
+      <div class="ps-label">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Project Summary
+      </div>
+      <span class="ps-status s-${statusCls}">${esc(status)}</span>
+    </div>
+    <div class="ps-text">${sentences.join(' ')}</div>
+  `;
+  banner.style.display = '';
+}
+window.renderProjectSummary = renderProjectSummary;
 
 // ── Integrations Page (inline within dashboard) ──────────────
 let igTicketsData = [];

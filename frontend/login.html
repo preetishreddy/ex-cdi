@@ -221,8 +221,10 @@
         al.textContent = 'Please enter your password.';
         al.style.display = 'block'; return;
       }
+      sessionStorage.setItem('isLoggedIn', '1');
       sessionStorage.setItem('userEmail', email);
       sessionStorage.setItem('jiraDomain', email.split('@')[1] || '');
+      sessionStorage.removeItem('dashboardLoaded');   // ensure loading animation plays
       window.location.href = 'project_dashboard.html';
     });
   </script>
