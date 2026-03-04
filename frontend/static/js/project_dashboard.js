@@ -13,6 +13,17 @@ let activeSprint = null;
 let decisionsLoaded = false;
 let decisionsData = [];
 
+// ── Global Tickets Cache (fetched once, reused everywhere) ───
+let _ticketsCachePromise = null;
+function fetchTicketsOnce() {
+  if (!_ticketsCachePromise) {
+    _ticketsCachePromise = fetch('/api/tickets/')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(data => Array.isArray(data) ? data : (data.results || []));
+  }
+  return _ticketsCachePromise;
+}
+
 // ── Auth Guard ───────────────────────────────────────────────
 if (!sessionStorage.getItem('isLoggedIn')) {
   window.location.href = 'login.html';
@@ -68,10 +79,27 @@ async function fetchSprints() {
   // Only show the loading animation on first visit after login
   const alreadyLoaded = sessionStorage.getItem('dashboardLoaded');
 
+  // ── Fetch ALL data in parallel (sprints + projects + tickets) ──
+  async function fetchAllData() {
+    const [, , tickets] = await Promise.all([
+      fetchSprints().catch(e => { console.error('Failed to fetch sprints:', e); }),
+      loadProjectRail().catch(e => { console.error('Failed to load projects:', e); }),
+      fetchTicketsOnce().catch(e => { console.error('Failed to fetch tickets:', e); return []; }),
+    ]);
+    // Populate the tickets cache so loadTickets / loadIgJira don't re-fetch
+    if (tickets && tickets.length) {
+      ticketsData = tickets;
+      ticketsLoaded = true;
+      igTicketsData = tickets;
+    }
+  }
+
   if (alreadyLoaded) {
     // Skip animation — just fetch data and render immediately
     overlay.remove();
-    try { await fetchSprints(); } catch (e) { console.error('Failed to fetch sprints:', e); }
+    await fetchAllData();
+    renderProjectGoal();
+    renderProjectSummary();
     applyPageRouting();
     if (!isIntegrationsPage()) {
       document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
@@ -88,14 +116,10 @@ async function fetchSprints() {
 
   // Step 1 – animate bar
   setTimeout(() => { barFill.style.width = '30%'; loadText.textContent = 'Connecting to workspace...'; }, 300);
-  setTimeout(() => { barFill.style.width = '55%'; loadText.textContent = 'Fetching sprints...'; }, 900);
+  setTimeout(() => { barFill.style.width = '55%'; loadText.textContent = 'Fetching sprints & projects...'; }, 900);
 
-  // Step 2 – fetch data while animation runs
-  try {
-    await fetchSprints();
-  } catch (e) {
-    console.error('Failed to fetch sprints from API:', e);
-  }
+  // Step 2 – fetch ALL data in parallel while animation runs
+  await fetchAllData();
 
   // Step 3 – finish bar
   setTimeout(() => { barFill.style.width = '85%'; loadText.textContent = 'Building dashboard...'; }, 1600);
@@ -108,6 +132,8 @@ async function fetchSprints() {
   // Step 4 – hide overlay & render
   setTimeout(() => {
     overlay.classList.add('hidden');
+    renderProjectGoal();
+    renderProjectSummary();
     applyPageRouting();
     if (!isIntegrationsPage()) {
       document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
@@ -289,8 +315,7 @@ function loadProjectTicketStats() {
 
   el.innerHTML = '<span class="ts-loading">Loading stats…</span>';
 
-  fetch('/api/tickets/')
-    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+  fetchTicketsOnce()
     .then(tickets => {
       projectStatsLoaded = true;
       renderProjectStats(el, tickets);
@@ -760,14 +785,14 @@ function loadTickets() {
   if (!container) return;
   if (ticketsLoaded) { renderTickets(container, ticketsData); return; }
   container.innerHTML = '<div class="decisions-loading"><div class="spinner"></div>Fetching outcomes from API…</div>';
-  fetch('/api/tickets/')
-    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+  fetchTicketsOnce()
     .then(data => {
       ticketsLoaded = true;
-      ticketsData = Array.isArray(data) ? data : (data.results || []);
+      ticketsData = data;
       renderTickets(container, ticketsData);
     })
     .catch(err => {
+      _ticketsCachePromise = null; // allow retry
       container.innerHTML = `<div class="decisions-error">⚠ Failed to load outcomes: ${err.message}<br><button class="btn btn-ghost" style="margin-top:12px" onclick="window.ticketsLoaded=false;window.loadTickets()">Retry</button></div>`;
     });
 }
@@ -1138,12 +1163,12 @@ async function loadProjectRail() {
       const statusCls = (p.status || 'active').toLowerCase().replace(/\s+/g, '_');
       const overviewUrl = `project_dashboard.html?project=${p.id}&page=overview`;
       const integrationsUrl = `project_dashboard.html?project=${p.id}&page=integrations`;
-      return `<div class="prj-item${isActive ? ' active-prj' : ''}" data-label="${esc(p.name)}" data-idx="${i}" onclick="window.location='${overviewUrl}'" onmouseenter="showProjectFlyout(event,${i})" onmouseleave="hideProjectFlyout()">`
+      return `<div class="prj-item${isActive ? ' active-prj' : ''}" data-label="${esc(p.name)}" data-idx="${i}" onclick="navigateToPage('${p.id}','overview')" onmouseenter="showProjectFlyout(event,${i})" onmouseleave="hideProjectFlyout()">`
         + `<span class="prj-name">${esc(p.name)}</span>`
         + `<span class="prj-status-dot s-${statusCls}"></span></div>`
         + `<div class="prj-sub-links${isActive ? ' expanded' : ''}">`
-        + `<a class="prj-sub-link${isActive && currentPage === 'overview' ? ' active-sub' : ''}" href="${overviewUrl}"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span class="nav-label">Overview</span></a>`
-        + `<a class="prj-sub-link${isActive && currentPage === 'integrations' ? ' active-sub' : ''}" href="${integrationsUrl}"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span class="nav-label">Integrations</span></a>`
+        + `<a class="prj-sub-link${isActive && currentPage === 'overview' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','overview')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span class="nav-label">Overview</span></a>`
+        + `<a class="prj-sub-link${isActive && currentPage === 'integrations' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','integrations')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span class="nav-label">Integrations</span></a>`
         + `</div>`;
     }).join('');
     // Update page title with the active project name
@@ -1180,7 +1205,8 @@ function showProjectFlyout(e, idx) {
   body.textContent = p.description || 'No description available.';
 
   const link = document.getElementById('flyoutLink');
-  link.href = 'project_dashboard.html?project=' + p.id;
+  link.href = 'javascript:void(0)';
+  link.onclick = () => { hideProjectFlyout(); navigateToPage(p.id, 'overview'); };
 
   flyout.classList.add('visible');
 }
@@ -1200,19 +1226,75 @@ setTimeout(() => {
   }
 }, 0);
 
-// Load rail once sidebar renders
-setTimeout(() => loadProjectRail(), 120);
-
 // ── Project Members Card ─────────────────────────────────────
 // (Removed — team members now shown in project goal banner)
 
-// Render project goal after project rail loads
-const _origLoadProjectRail = loadProjectRail;
-loadProjectRail = async function() {
-  await _origLoadProjectRail();
+// ── SPA Client-Side Navigation (no page reload, no re-fetch) ─
+function navigateToPage(projectId, page) {
+  // Update URL without reloading
+  const url = `project_dashboard.html?project=${projectId}&page=${page}`;
+  history.pushState({ projectId, page }, '', url);
+
+  // Re-render everything from cached data (zero API calls)
   renderProjectGoal();
   renderProjectSummary();
-};
+  updatePageTitle(projectId);
+  applyPageRouting();
+
+  // Re-render sidebar active states
+  rerenderRailActiveStates(projectId, page);
+
+  // If switching to overview, rebuild timeline + sprint panel
+  if (page === 'overview') {
+    document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
+    loadProjectTicketStats();
+    buildTimeline();
+    if (SPRINTS.length) {
+      activeSprint = null; // force re-render
+      selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+    }
+  }
+}
+window.navigateToPage = navigateToPage;
+
+function rerenderRailActiveStates(projectId, page) {
+  // Update active project + sub-link highlights without rebuilding the DOM
+  document.querySelectorAll('.prj-item').forEach((el, i) => {
+    const p = projectsCache[i];
+    if (!p) return;
+    const isActive = p.id === projectId;
+    el.classList.toggle('active-prj', isActive);
+    const subLinks = el.nextElementSibling;
+    if (subLinks && subLinks.classList.contains('prj-sub-links')) {
+      subLinks.classList.toggle('expanded', isActive);
+      const links = subLinks.querySelectorAll('.prj-sub-link');
+      links.forEach(a => a.classList.remove('active-sub'));
+      if (isActive) {
+        const activeLink = page === 'integrations' ? links[1] : links[0];
+        if (activeLink) activeLink.classList.add('active-sub');
+      }
+    }
+  });
+}
+
+// Handle browser back/forward buttons
+window.addEventListener('popstate', (e) => {
+  if (e.state && e.state.projectId) {
+    const { projectId, page } = e.state;
+    renderProjectGoal();
+    renderProjectSummary();
+    updatePageTitle(projectId);
+    applyPageRouting();
+    rerenderRailActiveStates(projectId, page || 'overview');
+    if ((page || 'overview') === 'overview') {
+      buildTimeline();
+      if (SPRINTS.length) {
+        activeSprint = null;
+        selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+      }
+    }
+  }
+});
 
 // ── Update page title with project name ──────────────────────
 function updatePageTitle(pid) {
@@ -1422,9 +1504,7 @@ async function loadIntegrationsData() {
 
 async function loadIgJira() {
   try {
-    const res = await fetch('/api/tickets/');
-    const data = await res.json();
-    igTicketsData = Array.isArray(data) ? data : (data.results || []);
+    igTicketsData = await fetchTicketsOnce();
     const completed = igTicketsData.filter(t => ['done','closed','resolved','complete','completed'].includes(t.status?.toLowerCase())).length;
     const inProgress = igTicketsData.filter(t => ['in progress','in review','in development'].includes(t.status?.toLowerCase())).length;
     const blockers = igTicketsData.filter(t => t.priority?.toLowerCase() === 'highest' || t.priority?.toLowerCase() === 'critical').length;
@@ -1584,4 +1664,76 @@ function igFmtDate(d) {
 // Expose integrations functions for onclick
 window.showIgSection = showIgSection;
 window.hideIgSection = hideIgSection;
+
+// ── New Integration Modal ────────────────────────────────────
+const NI_BRANDS = {
+  zoom:        { name: 'Zoom',             cls: 'zoom',    svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm12 3l6-3v12l-6-3V7z"/></svg>' },
+  'google-meet': { name: 'Google Meet',    cls: 'gmeet',   svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 12l5-3.5V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3.5l-5-3.5zm-4 4H6v-2h4v2zm0-4H6V10h4v2z"/></svg>' },
+  slack:       { name: 'Slack',            cls: 'slack',   svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52z"/></svg>' },
+  teams:       { name: 'Microsoft Teams',  cls: 'teams',   svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 8.5c-.2 0-.39.03-.57.08A3.5 3.5 0 0 0 15.5 5c-.26 0-.5.03-.74.08A4 4 0 0 0 7.5 4C5.57 4 4 5.57 4 7.5c0 .26.03.5.08.74A3.5 3.5 0 0 0 5.5 15H9v5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-5h4.35a2.65 2.65 0 0 0 0-5.3V8.5z"/></svg>' },
+  outlook:     { name: 'Outlook Calendar', cls: 'outlook', svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5zm4 0v2h10V5H7zm-1 4v8h12V9H6zm2 2h3v3H8v-3z"/></svg>' },
+  trello:      { name: 'Trello',           cls: 'trello',  svg: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="20" height="20" rx="3" ry="3" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="5" width="5" height="12" rx="1"/><rect x="13" y="5" width="5" height="8" rx="1"/></svg>' },
+};
+
+let _currentIntService = null;
+
+function openNewIntegrationModal() {
+  document.getElementById('niModalOverlay').classList.add('visible');
+  document.getElementById('niSearch').value = '';
+  filterIntegrations('');
+}
+window.openNewIntegrationModal = openNewIntegrationModal;
+
+function closeNewIntegrationModal() {
+  document.getElementById('niModalOverlay').classList.remove('visible');
+}
+window.closeNewIntegrationModal = closeNewIntegrationModal;
+
+function filterIntegrations(q) {
+  q = q.toLowerCase().trim();
+  document.querySelectorAll('#niGrid .ni-item').forEach(el => {
+    const name = el.dataset.name.toLowerCase();
+    el.classList.toggle('hidden', q !== '' && !name.includes(q));
+  });
+}
+window.filterIntegrations = filterIntegrations;
+
+function startIntegrationFlow(service) {
+  closeNewIntegrationModal();
+  _currentIntService = service;
+  const brand = NI_BRANDS[service] || { name: service, cls: '', svg: '' };
+  const iconEl = document.getElementById('niSigninIcon');
+  iconEl.className = 'ni-signin-icon ni-icon ' + brand.cls;
+  iconEl.innerHTML = brand.svg;
+  document.getElementById('niSigninTitle').textContent = 'Connect ' + brand.name;
+  document.getElementById('niSigninEmail').value = '';
+  document.getElementById('niSigninPassword').value = '';
+  const btn = document.getElementById('niSigninBtn');
+  btn.textContent = 'Sign In & Connect';
+  btn.classList.remove('success');
+  btn.disabled = false;
+  document.getElementById('niSigninOverlay').classList.add('visible');
+}
+window.startIntegrationFlow = startIntegrationFlow;
+
+function closeSigninModal() {
+  document.getElementById('niSigninOverlay').classList.remove('visible');
+}
+window.closeSigninModal = closeSigninModal;
+
+function submitIntegration(e) {
+  e.preventDefault();
+  const btn = document.getElementById('niSigninBtn');
+  const brand = NI_BRANDS[_currentIntService] || { name: _currentIntService };
+  btn.textContent = 'Connecting...';
+  btn.disabled = true;
+  // Simulate OAuth / credential verification
+  setTimeout(() => {
+    btn.textContent = '\u2713 ' + brand.name + ' Connected!';
+    btn.classList.add('success');
+    // Auto-close after showing success
+    setTimeout(() => closeSigninModal(), 1400);
+  }, 1200);
+}
+window.submitIntegration = submitIntegration;
 

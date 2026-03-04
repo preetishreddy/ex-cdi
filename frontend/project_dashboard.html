@@ -40,6 +40,12 @@
     </div>
   </div>
   <div class="content ig-content" id="integrationsContent" style="display:none">
+    <div class="ig-top-bar">
+      <button class="ig-new-btn" onclick="openNewIntegrationModal()">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Integration
+      </button>
+    </div>
     <div class="ig-cards" id="igCards">
       <div class="ig-card" data-source="jira">
         <div class="ig-card-header">
@@ -104,6 +110,74 @@
       </div>
       <div class="ig-detail-body" id="igDetailBody"></div>
     </div>
+  </div>
+</div>
+<!-- New Integration Modal -->
+<div class="ni-modal-overlay" id="niModalOverlay" onclick="closeNewIntegrationModal()">
+  <div class="ni-modal" onclick="event.stopPropagation()">
+    <div class="ni-modal-header">
+      <div>
+        <h2 class="ni-modal-title">Add New Integration</h2>
+        <p class="ni-modal-subtitle">Connect a service to your project workspace</p>
+      </div>
+      <button class="ni-close" onclick="closeNewIntegrationModal()">&times;</button>
+    </div>
+    <div class="ni-search-wrap">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="ni-search" id="niSearch" type="text" placeholder="Search integrations..." oninput="filterIntegrations(this.value)">
+    </div>
+    <div class="ni-grid" id="niGrid">
+      <div class="ni-item" data-name="Zoom" onclick="startIntegrationFlow('zoom')">
+        <div class="ni-icon zoom"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm12 3l6-3v12l-6-3V7z"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Zoom</span><span class="ni-desc">Video Conferencing</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+      <div class="ni-item" data-name="Google Meet" onclick="startIntegrationFlow('google-meet')">
+        <div class="ni-icon gmeet"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 12l5-3.5V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3.5l-5-3.5zm-4 4H6v-2h4v2zm0-4H6V10h4v2z"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Google Meet</span><span class="ni-desc">Video Meetings</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+      <div class="ni-item" data-name="Slack" onclick="startIntegrationFlow('slack')">
+        <div class="ni-icon slack"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Slack</span><span class="ni-desc">Team Messaging</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+      <div class="ni-item" data-name="Microsoft Teams" onclick="startIntegrationFlow('teams')">
+        <div class="ni-icon teams"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 8.5c-.2 0-.39.03-.57.08A3.5 3.5 0 0 0 15.5 5c-.26 0-.5.03-.74.08A4 4 0 0 0 7.5 4C5.57 4 4 5.57 4 7.5c0 .26.03.5.08.74A3.5 3.5 0 0 0 5.5 15H9v5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-5h4.35a2.65 2.65 0 0 0 0-5.3V8.5z"/><circle cx="17" cy="4" r="2.5"/><path d="M14.5 10h5v3a2.5 2.5 0 0 1-5 0v-3z"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Microsoft Teams</span><span class="ni-desc">Collaboration Hub</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+      <div class="ni-item" data-name="Outlook Calendar" onclick="startIntegrationFlow('outlook')">
+        <div class="ni-icon outlook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5zm4 0v2h10V5H7zm-1 4v8h12V9H6zm2 2h3v3H8v-3z"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Outlook Calendar</span><span class="ni-desc">Scheduling & Events</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+      <div class="ni-item" data-name="Trello" onclick="startIntegrationFlow('trello')">
+        <div class="ni-icon trello"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="20" height="20" rx="3" ry="3" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="5" width="5" height="12" rx="1"/><rect x="13" y="5" width="5" height="8" rx="1"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Trello</span><span class="ni-desc">Kanban Boards</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Sign-In Flow Modal -->
+<div class="ni-signin-overlay" id="niSigninOverlay" onclick="closeSigninModal()">
+  <div class="ni-signin-modal" onclick="event.stopPropagation()">
+    <button class="ni-close" onclick="closeSigninModal()">&times;</button>
+    <div class="ni-signin-icon" id="niSigninIcon"></div>
+    <h2 class="ni-signin-title" id="niSigninTitle">Connect Zoom</h2>
+    <p class="ni-signin-desc">Sign in with your account to connect this integration to your workspace.</p>
+    <form class="ni-signin-form" onsubmit="submitIntegration(event)">
+      <div class="ni-form-group">
+        <label>Email Address</label>
+        <input type="email" id="niSigninEmail" placeholder="you@company.com" required>
+      </div>
+      <div class="ni-form-group">
+        <label>Password / API Key</label>
+        <input type="password" id="niSigninPassword" placeholder="Enter credentials" required>
+      </div>
+      <button type="submit" class="ni-signin-btn" id="niSigninBtn">Sign In & Connect</button>
+    </form>
   </div>
 </div>
 <div class="loading-overlay" id="loadingOverlay">
