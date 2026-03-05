@@ -1,11 +1,7 @@
 /* ============================================================
-   EX-CDI — Project Overview JavaScript
-   ============================================================ */
-
-// ── Sprint Data (fetched from API) ───────────────────────────
+  EX-CDI — Project Overview JavaScript
+  ============================================================ */
 let SPRINTS = [];
-
-// ── Constants ────────────────────────────────────────────────
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // ── State ────────────────────────────────────────────────────
@@ -312,6 +308,9 @@ function selectSprint(id) {
 
     <div class="tab-content" id="dp-decisions">
       <div class="decisions-loading"><div class="spinner"></div>Click to load decisions...</div>
+    </div>
+    <div class="tab-content" id="dp-decision-map" style="display:none">
+      <div id="decisionMapContainer"></div>
     </div>`;
 
   p.classList.remove('visible');
@@ -435,7 +434,7 @@ function bCal(sp, meetings) {
 
       // Hover tooltip for meeting dates
       const titleAttr = m ? ` title="${esc(m.name)}"` : '';
-      const clickAttr = m ? ` onclick="window.openMeetingPopup('${m.date}','${esc(m.type)}','${esc(m.name)}','${esc(m.project)}','${esc(m.time)}','${esc((m.summary || '').replace(/'/g, "&#39;"))}')"` : '';
+      const clickAttr = m ? ` onclick="window.openMeetingPopup('${m.date}','${esc(m.type)}','${esc(m.name)}','${esc(m.project)}','${esc((m.summary || '').replace(/'/g, "&#39;"))}')"` : '';
 
       h += `<div class="${c}"${titleAttr}${clickAttr}>${d}</div>`;
     }
@@ -729,11 +728,11 @@ function renderFilter(decisions, activeCat) {
 
 // ── Main render controller ──
 function renderDecisions(container, decisions) {
-  // Only show decisions with confidence score >= 0.90
-  const highConf = decisions.filter(d => (d.confidence_score || 0) >= 0.90);
+  // Show all decisions
+  const highConf = [...decisions];
 
   if (!highConf.length) {
-    container.innerHTML = '<div class="decisions-empty">No high-confidence decisions found.</div>';
+    container.innerHTML = '<div class="decisions-empty">No decisions found.</div>';
     return;
   }
 
@@ -742,13 +741,9 @@ function renderDecisions(container, decisions) {
   const catCount = new Set(highConf.map(d => d.category || 'Uncategorized')).size;
   const toolbar = `<div class="dtl-toolbar">
     <div class="dtl-toolbar-left">
-      <button class="dtl-view-btn${dtlViewMode === 'overall' ? ' active' : ''}" onclick="window.setDtlView('overall')">
+      <button class="dtl-view-btn active">
         <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
-        Overall
-      </button>
-      <button class="dtl-view-btn${dtlViewMode === 'grouped' ? ' active' : ''}" onclick="window.setDtlView('grouped')">
-        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        Grouped
+        All Decisions
       </button>
     </div>
     <div class="dtl-toolbar-right">
@@ -757,10 +752,8 @@ function renderDecisions(container, decisions) {
     </div>
   </div>`;
 
-  // Body based on current view mode
-  let body = '';
-  if (dtlViewMode === 'overall')      body = renderOverall(highConf);
-  else if (dtlViewMode === 'grouped') body = renderGrouped(highConf);
+  // Body — always overall view
+  const body = renderOverall(highConf);
 
   container.innerHTML = toolbar + `<div class="dtl-view-body">${body}</div>`;
 }
@@ -1466,6 +1459,7 @@ function renderProjectSummary() {
     sentences.push(`Tagged as: ${tags.map(t => `<span class="ps-tag">${esc(t)}</span>`).join(' ')}.`);
   }
 
+  // Render summary as before
   banner.innerHTML = `
     <div class="ps-header">
       <div class="ps-label">
@@ -1475,8 +1469,121 @@ function renderProjectSummary() {
       <span class="ps-status s-${statusCls}">${esc(status)}</span>
     </div>
     <div class="ps-text">${sentences.join(' ')}</div>
+    <div id="decisionMapContainer"></div>
   `;
   banner.style.display = '';
+
+  setTimeout(() => renderDecisionMapInSummary(), 0);
+}
+
+// Decision Map: rendered under Project Summary card as a horizontal snake/zigzag
+function renderDecisionMapInSummary() {
+  const container = document.getElementById('decisionMapContainer');
+  if (!container || !decisionsData.length) return;
+  const decisions = [...decisionsData];
+  if (!decisions.length) { container.innerHTML = ''; return; }
+
+  const sorted = decisions.sort((a, b) => {
+    if (a.decision_date && b.decision_date) return new Date(a.decision_date) - new Date(b.decision_date);
+    return String(a.source_id).localeCompare(String(b.source_id));
+  });
+
+  const catColors = ['#1e8fff','#6c5ce7','#00cec9','#e17055','#fdcb6e','#55efc4'];
+  const catNames = [...new Set(sorted.map(d => d.category || 'Uncategorized'))];
+  const catColorMap = {};
+  catNames.forEach((c, i) => { catColorMap[c] = catColors[i % catColors.length]; });
+
+  const nodeW  = 150;   // fixed node width (box-sizing:border-box)
+  const arrowW = 48;    // arrow connector width
+  const connColor = '#4a6a8a';
+
+  let html = '<div style="margin-top:24px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.07);">';
+
+  // Collapsible header
+  html += `<div onclick="(function(e){var body=e.currentTarget.nextElementSibling;var chevron=e.currentTarget.querySelector('.dmap-chevron');if(body.style.display==='none'){body.style.display='block';chevron.style.transform='rotate(0deg)';}else{body.style.display='none';chevron.style.transform='rotate(-90deg)';}})(event)" style="display:flex;align-items:center;gap:10px;font-size:18px;font-weight:700;color:#fff;margin-bottom:14px;cursor:pointer;user-select:none;">`;
+  html += '<svg viewBox="0 0 24 24" width="20" height="20" stroke="#1e8fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  html += ' Decision Map';
+  html += '<svg class="dmap-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="#7ea8d4" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;transition:transform 0.2s;transform:rotate(0deg);"><polyline points="6 9 12 15 18 9"/></svg>';
+  html += '</div>';
+
+  // Collapsible body (visible by default)
+  html += '<div style="display:block;">';
+
+  // Legend
+  html += '<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">';
+  catNames.forEach(c => {
+    html += `<span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#b0c4e7;"><span style="width:10px;height:10px;border-radius:50%;background:${catColorMap[c]};display:inline-block;"></span>${esc(c)}</span>`;
+  });
+  html += '</div>';
+
+  // Snake / zigzag: 5 per row
+  const perRow = 5;
+  const rows = [];
+  for (let i = 0; i < sorted.length; i += perRow) rows.push(sorted.slice(i, i + perRow));
+
+  // Total width of a full row: perRow nodes + (perRow-1) arrows
+  const fullRowW = perRow * nodeW + (perRow - 1) * arrowW;
+
+  // Outer scroll wrapper
+  html += '<div style="padding-bottom:10px;overflow-x:auto;">';
+  // Inner wrapper at exact row width so flex-end / flex-start work correctly
+  html += `<div style="width:${fullRowW}px;min-width:${fullRowW}px;">`;
+
+  rows.forEach((row, rowIdx) => {
+    const isReversed = rowIdx % 2 === 1;
+    const displayRow = isReversed ? [...row].reverse() : row;
+
+    // ── Horizontal row ──
+    html += '<div style="display:flex;align-items:center;">';
+    displayRow.forEach((d, colIdx) => {
+      const cat   = d.category || 'Uncategorized';
+      const color = catColorMap[cat];
+      const isSup = d.status === 'superseded';
+      const dateStr = d.decision_date || '';
+
+      // Node box (fixed width, border-box)
+      html += `<div style="box-sizing:border-box;background:#0a1628;border:2px solid ${color};border-radius:10px;padding:10px 14px;color:#fff;width:${nodeW}px;min-width:${nodeW}px;text-align:center;box-shadow:0 2px 8px 0 rgba(30,143,255,0.08);${isSup ? 'opacity:0.5;border-style:dashed;' : ''}">`;
+      html += `<div style="font-size:13px;font-weight:600;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(d.title || d.source_id)}">${esc(d.title || d.source_id)}</div>`;
+      if (dateStr) html += `<div style="font-size:10px;color:#7ea8d4;font-family:monospace;">${esc(dateStr)}</div>`;
+      if (isSup) html += '<div style="display:inline-block;margin-top:3px;font-size:10px;color:#fdcb6e;background:rgba(253,203,110,0.12);border-radius:5px;padding:1px 7px;">Superseded</div>';
+      html += '</div>';
+
+      // Arrow between nodes
+      if (colIdx < displayRow.length - 1) {
+        html += `<div style="display:flex;align-items:center;width:${arrowW}px;min-width:${arrowW}px;position:relative;">`;
+        html += `<div style="width:100%;height:2px;background:${connColor};"></div>`;
+        if (isReversed) {
+          html += `<div style="position:absolute;left:0;top:50%;transform:translateY(-50%);width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-right:8px solid ${connColor};"></div>`;
+        } else {
+          html += `<div style="position:absolute;right:0;top:50%;transform:translateY(-50%);width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid ${connColor};"></div>`;
+        }
+        html += '</div>';
+      }
+    });
+    html += '</div>';
+
+    // ── Vertical connector between rows ──
+    if (rowIdx < rows.length - 1) {
+      // After L→R row (even): drop from rightmost node → next R→L row starts on right
+      // After R→L row (odd):  drop from leftmost node  → next L→R row starts on left
+      // Calculate exact left offset to center the connector under the correct node
+      let offsetPx;
+      if (!isReversed) {
+        // L→R row: connector under LAST node (rightmost) – center of last node
+        const lastNodeIdx = row.length - 1; // 0-based index in this row
+        offsetPx = lastNodeIdx * (nodeW + arrowW) + nodeW / 2;
+      } else {
+        // R→L row: connector under FIRST displayed (leftmost) node – center of first node
+        offsetPx = nodeW / 2;
+      }
+      html += `<div style="position:relative;width:100%;height:40px;">`;
+      html += `<div style="position:absolute;left:${offsetPx}px;transform:translateX(-50%);width:2px;height:100%;background:${connColor};">`;
+      html += `<div style="position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid ${connColor};"></div>`;
+      html += '</div></div>';
+    }
+  });
+  html += '</div></div></div></div>';
+  container.innerHTML = html;
 }
 window.renderProjectSummary = renderProjectSummary;
 
@@ -1690,7 +1797,7 @@ window.hideIgSection = hideIgSection;
 // ── New Integration Modal ────────────────────────────────────
 const NI_BRANDS = {
   zoom:        { name: 'Zoom',             cls: 'zoom',    svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm12 3l6-3v12l-6-3V7z"/></svg>' },
-  'google-meet': { name: 'Google Meet',    cls: 'gmeet',   svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 12l5-3.5V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3.5l-5-3.5zm-4 4H6v-2h4v2zm0-4H6V10h4v2z"/></svg>' },
+  'google-meet': { name: 'Google Meet',    cls: 'gmeet',   svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 12l5-3v12l-6-3V7z"/></svg>' },
   slack:       { name: 'Slack',            cls: 'slack',   svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52z"/></svg>' },
   teams:       { name: 'Microsoft Teams',  cls: 'teams',   svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 8.5c-.2 0-.39.03-.57.08A3.5 3.5 0 0 0 15.5 5c-.26 0-.5.03-.74.08A4 4 0 0 0 7.5 4C5.57 4 4 5.57 4 7.5c0 .26.03.5.08.74A3.5 3.5 0 0 0 5.5 15H9v5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-5h4.35a2.65 2.65 0 0 0 0-5.3V8.5z"/></svg>' },
   outlook:     { name: 'Outlook Calendar', cls: 'outlook', svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5zm4 0v2h10V5H7zm-1 4v8h12V9H6zm2 2h3v3H8v-3z"/></svg>' },

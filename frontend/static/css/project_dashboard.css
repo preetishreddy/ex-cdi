@@ -1,3 +1,286 @@
+/* ── Decision Map (horizontal timeline) ─────────────────── */
+.dmap-section {
+  margin: 32px 0 0 0;
+  padding: 24px 0 0 0;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.dmap-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+}
+.dmap-header svg { color: #1e8fff; }
+.dmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.dmap-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #b0c4e7;
+}
+.dmap-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dmap-scroll {
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+.dmap-timeline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+  min-width: max-content;
+}
+.dmap-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+.dmap-node {
+  background: #101c2c;
+  border: 3px solid #1e8fff;
+  border-radius: 14px;
+  padding: 14px 22px;
+  color: #fff;
+  min-width: 160px;
+  max-width: 280px;
+  text-align: center;
+  box-shadow: 0 2px 8px 0 rgba(30,143,255,0.08);
+  transition: border-color 0.3s, opacity 0.3s;
+}
+.dmap-node-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.dmap-node-date {
+  font-size: 12px;
+  color: #7ea8d4;
+  font-family: var(--font-mono, monospace);
+}
+.dmap-node-badge.superseded {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #ffb84d;
+  background: rgba(255,184,77,0.12);
+  border-radius: 6px;
+  padding: 1px 8px;
+}
+.dmap-item.superseded .dmap-node {
+  opacity: 0.55;
+  border-style: dashed;
+}
+.dmap-connector {
+  width: 36px;
+  height: 3px;
+  position: relative;
+  flex-shrink: 0;
+}
+.dmap-arrow {
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 8px solid #1e8fff;
+}
+
+/* Vertical Decision Timeline Styles */
+.vertical-decision-timeline {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 24px 0 0 0;
+  position: relative;
+}
+.vertical-decision-node {
+  background: #101c2c;
+  border: 2px solid #3a4a5a;
+  border-radius: 10px;
+  padding: 10px 18px;
+  margin-bottom: 0;
+  color: #fff;
+  box-shadow: 0 2px 8px 0 rgba(30,143,255,0.05);
+  position: relative;
+  min-width: 180px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-size: 16px;
+}
+.vertical-decision-node.active {
+  border-color: #1e8fff;
+  box-shadow: 0 0 0 2px #1e8fff;
+}
+.vertical-decision-node.superseded {
+  border-color: #3a4a5a;
+  opacity: 0.7;
+}
+.vertical-decision-date {
+  font-size: 15px;
+  color: var(--accent2);
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+}
+.vertical-decision-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 2px;
+  color: #fff;
+}
+.vertical-decision-desc {
+  font-size: 16px;
+  color: #b0c4e7;
+  margin-bottom: 8px;
+}
+.vertical-decision-meta {
+  font-size: 14px;
+  color: var(--warn);
+  font-weight: 600;
+}
+.superseded-label {
+  background: var(--warn);
+  color: #fff;
+  border-radius: 8px;
+  padding: 2px 10px;
+  font-size: 13px;
+  margin-left: 6px;
+}
+.vertical-decision-connector {
+  width: 4px;
+  height: 32px;
+  background: linear-gradient(to bottom, #1e8fff 60%, #101c2c 100%);
+  margin: 0 0 0 32px;
+  border-radius: 2px;
+}
+.decision-flowchart {
+  margin-top: 18px;
+  padding: 18px 0 10px 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  position: relative;
+}
+.decision-flowchart-cat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.decision-flowchart-cat-title {
+  font-size: 16px;
+  color: var(--accent2);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.decision-flowchart-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 48px;
+}
+.decision-flow-node {
+  display: inline-block;
+  padding: 8px 18px;
+  margin: 4px 6px 4px 0;
+  border-radius: 8px;
+  background: #f9f9f9;
+  color: #222;
+  font-weight: 600;
+  font-size: 15px;
+  border: 2px solid #888;
+  transition: box-shadow .2s, border-color .2s;
+  position: relative;
+}
+.decision-flow-node.blink {
+  animation: blink 1s infinite;
+  border-color: var(--success);
+  background: #eaffea;
+}
+.decision-flow-node.superseded {
+  border-color: var(--warn);
+  background: #fff6e0;
+  color: #b97a00;
+  box-shadow: 0 0 0 2px var(--warn);
+}
+.decision-flowchart-arrows {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%; height: 100px;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+/* Decision Flow Summary Styles */
+.decision-flow-summary {
+  margin-top: 18px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.decision-flow-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.decision-flow-group h4 {
+  font-size: 15px;
+  color: var(--accent2);
+  margin-bottom: 4px;
+}
+.decision-flow-node {
+  display: inline-block;
+  padding: 6px 14px;
+  margin: 4px 6px 4px 0;
+  border-radius: 8px;
+  background: #f9f9f9;
+  color: #222;
+  font-weight: 600;
+  font-size: 14px;
+  border: 2px solid #888;
+  transition: box-shadow .2s, border-color .2s;
+}
+.decision-flow-node.blink {
+  animation: blink 1s infinite;
+  border-color: var(--success);
+  background: #eaffea;
+}
+.decision-flow-node.superseded {
+  border-color: var(--warn);
+  background: #fff6e0;
+  color: #b97a00;
+  box-shadow: 0 0 0 2px var(--warn);
+}
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
 /* ============================================================
    EX-CDI — Project Overview Styles
    ============================================================ */
@@ -324,7 +607,7 @@ body {
 .flyout-body {
   font-size: 14px; color: var(--muted); line-height: 1.5;
   margin-bottom: 12px;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; line-clamp: 3;
   overflow: hidden;
 }
 .flyout-meta {
