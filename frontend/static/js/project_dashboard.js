@@ -1592,7 +1592,7 @@ function renderDecisionMapInSummary() {
 
   const sorted = decisions.sort((a, b) => {
     if (a.decision_date && b.decision_date) return new Date(b.decision_date) - new Date(a.decision_date);
-    return String(b.source_id).localeCompare(String(a.source_id));
+    return String(a.source_id).localeCompare(String(b.source_id));
   });
 
   // Category colors
@@ -1620,8 +1620,7 @@ function renderDecisionMapInSummary() {
 
   // Category filter buttons
   html += '<div class="dtm-filters">';
-  html += `<button class="dtm-filter-btn active" data-cat="overall" onclick="window._dtmSetFilter('overall',this)" style="--btn-c:#00e5ff">Overall</button>`;
-  html += `<button class="dtm-filter-btn" data-cat="grouped" onclick="window._dtmSetFilter('grouped',this)" style="--btn-c:#00e5ff">Grouped</button>`;
+  html += `<button class="dtm-filter-btn active" data-cat="grouped" onclick="window._dtmSetFilter('grouped',this)" style="--btn-c:#00e5ff">Grouped</button>`;
   catNames.forEach(c => {
     const clr = catColorMap[c];
     html += `<button class="dtm-filter-btn" data-cat="${esc(c)}" onclick="window._dtmSetFilter('${esc(c)}',this)" style="--btn-c:${clr}">${esc(c)}</button>`;
@@ -1634,8 +1633,8 @@ function renderDecisionMapInSummary() {
   html += '</div></div>';
   container.innerHTML = html;
 
-  // Render initial "Overall" view
-  window._dtmSetFilter('overall', container.querySelector('.dtm-filter-btn.active'));
+  // Render initial "Grouped" view
+  window._dtmSetFilter('grouped', container.querySelector('.dtm-filter-btn.active'));
 }
 
 // Filter handler
@@ -1726,20 +1725,19 @@ function _dtmRenderOverall(container) {
   container.innerHTML = html;
 }
 
-// Multi-column grouped view — cat=null shows all categories as columns,
+// Multi-column view — cat=null shows all categories as columns,
 // cat=string shows just that category as a single column
 function _dtmRenderGrouped(container, cat) {
   const sorted = window._dtmSorted;
   const catColorMap = window._dtmCatColorMap;
 
   // Build column data: one column per category (or single when filtered)
-  let columns; // [{label, color, decisions}]
+  let columns;
   if (cat) {
     const color = catColorMap[cat] || '#1e8fff';
     const decisions = sorted.filter(d => (d.category || 'Uncategorized') === cat);
     columns = decisions.length ? [{ label: cat, color, decisions }] : [];
   } else {
-    // Group by category, preserve category order from legend
     const catOrder = Object.keys(catColorMap);
     const grouped = {};
     sorted.forEach(d => {
@@ -1768,9 +1766,6 @@ function _dtmRenderGrouped(container, cat) {
     html += `${esc(label)}`;
     html += '</div>';
 
-    // Arrow down from header
-    html += `<svg class="dtm-col-arrow" viewBox="0 0 20 32"><line x1="10" y1="0" x2="10" y2="24" stroke="${color}" stroke-width="2"/><polygon points="10,32 5,22 15,22" fill="${color}"/></svg>`;
-
     decisions.forEach((d, i) => {
       const isSup = d.status === 'superseded';
       const cardBorder = isSup ? '#c0c6ce' : color;
@@ -1785,6 +1780,7 @@ function _dtmRenderGrouped(container, cat) {
       html += `<div class="dtm-col-card" style="border-color:${cardBorder};background:${cardBg};color:${cardTextColor};${glowStyle}">`;
       if (isSup) html += '<span class="dtm-card-badge superseded">SUPERSEDED</span>';
       html += `<div class="dtm-col-card-title">${esc(d.title || d.source_id)}</div>`;
+      if (d.decision_date) html += `<div class="dtm-col-card-date">${esc(d.decision_date)}</div>`;
       if (summary) html += `<div class="dtm-col-tooltip">${esc(summary)}</div>`;
       html += '</div>';
 
@@ -1792,7 +1788,7 @@ function _dtmRenderGrouped(container, cat) {
       if (i < decisions.length - 1) {
         const nextSup = decisions[i + 1].status === 'superseded';
         const arrColor = (isSup || nextSup) ? '#c0c6ce' : color;
-        html += `<svg class="dtm-col-arrow" viewBox="0 0 20 32"><line x1="10" y1="0" x2="10" y2="24" stroke="${arrColor}" stroke-width="2"/><polygon points="10,32 5,22 15,22" fill="${arrColor}"/></svg>`;
+        html += `<svg class="dtm-col-arrow" viewBox="0 0 20 32"><line x1="10" y1="8" x2="10" y2="32" stroke="${arrColor}" stroke-width="2"/><polygon points="10,0 5,10 15,10" fill="${arrColor}"/></svg>`;
       }
     });
 
