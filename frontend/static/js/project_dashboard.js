@@ -8,6 +8,51 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 let activeSprint = null;
 let decisionsLoaded = false;
 let decisionsData = [];
+let employeesCache = [];
+
+// ── Fetch employees once and cache ───────────────────────────
+let _employeesCachePromise = null;
+function fetchEmployeesOnce() {
+  if (!_employeesCachePromise) {
+    _employeesCachePromise = fetch('/api/employees/')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { employeesCache = Array.isArray(data) ? data : (data.results || []); return employeesCache; })
+      .catch(() => { employeesCache = []; return []; });
+  }
+  return _employeesCachePromise;
+}
+
+/** Look up an employee by name (case-insensitive fuzzy) */
+function findEmployeeByName(name) {
+  if (!name || !employeesCache.length) return null;
+  const lower = name.toLowerCase();
+  return employeesCache.find(e => e.name && e.name.toLowerCase() === lower) || null;
+}
+
+/** Build a member chip with hover tooltip */
+function buildMemberChip(memberName, isOwner) {
+  const initials = memberName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const emp = findEmployeeByName(memberName);
+  const email = emp?.email || '';
+  const role = emp?.role || '';
+  const dept = emp?.department || '';
+  const teamsLink = email ? `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(email)}` : '';
+  const mailLink = email ? `mailto:${email}` : '';
+
+  // Build tooltip content
+  let tipRows = '';
+  if (role) tipRows += `<div class="pg-tip-row"><svg viewBox="0 0 24 24" width="13" height="13" stroke="#7ea8d4" fill="none" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a4 4 0 0 0-8 0v2"/></svg> ${esc(role)}</div>`;
+  if (dept) tipRows += `<div class="pg-tip-row"><svg viewBox="0 0 24 24" width="13" height="13" stroke="#7ea8d4" fill="none" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> ${esc(dept)}</div>`;
+  if (email) tipRows += `<div class="pg-tip-row"><svg viewBox="0 0 24 24" width="13" height="13" stroke="#7ea8d4" fill="none" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> <a href="${mailLink}" style="color:#1e8fff;text-decoration:none;">${esc(email)}</a></div>`;
+  if (teamsLink) tipRows += `<div class="pg-tip-row pg-tip-teams"><a href="${teamsLink}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:#7b83eb;text-decoration:none;font-weight:600;"><svg viewBox="0 0 24 24" width="14" height="14" fill="#7b83eb"><path d="M19.27 6.73a2.5 2.5 0 1 0-3.54 0 2.5 2.5 0 0 0 3.54 0zM22 12v5a2 2 0 0 1-2 2h-1v-6a3 3 0 0 0-3-3h-1.27A4.97 4.97 0 0 0 17 8h3a2 2 0 0 1 2 2v2zM12.5 4a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM15 11a2 2 0 0 1 2 2v5a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-5a2 2 0 0 1 2-2h11z"/></svg> Chat on Teams</a></div>`;
+
+  const tooltip = tipRows ? `<div class="pg-member-tooltip"><div class="pg-tip-name">${esc(memberName)}</div>${tipRows}</div>` : '';
+
+  return `<span class="pg-member${isOwner ? ' pg-member--owner' : ''}" style="position:relative;">`
+    + `<span class="pg-member-av">${initials}</span>${esc(memberName)}${isOwner ? '<span class="pg-owner-badge">Owner</span>' : ''}`
+    + tooltip
+    + `</span>`;
+}
 
 // ── Global Tickets Cache (fetched once, reused everywhere) ───
 let _ticketsCachePromise = null;
@@ -40,7 +85,7 @@ if (!sessionStorage.getItem('isLoggedIn')) {
 // ── User Setup ───────────────────────────────────────────────
 const userEmail = sessionStorage.getItem('userEmail') || 'user@company.atlassian.net';
 const jiraDomain = sessionStorage.getItem('jiraDomain') || 'company.atlassian.net';
-const userName = userEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+const userName = sessionStorage.getItem('userName') || userEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
 document.getElementById('sidebarUserName').textContent = userName;
 document.getElementById('userAvatar').textContent = userName.split(' ').map(w => w[0]).join('').substring(0, 2);
@@ -89,9 +134,10 @@ async function fetchSprints() {
 
   // ── Fetch ALL data in parallel (sprints + projects + tickets) ──
   async function fetchAllData() {
-    const [, , tickets, decisions] = await Promise.all([
+    const [, , , tickets, decisions] = await Promise.all([
       fetchSprints().catch(e => { console.error('Failed to fetch sprints:', e); }),
       loadProjectRail().catch(e => { console.error('Failed to load projects:', e); }),
+      fetchEmployeesOnce().catch(e => { console.error('Failed to fetch employees:', e); }),
       fetchTicketsOnce().catch(e => { console.error('Failed to fetch tickets:', e); return []; }),
       fetchDecisionsOnce().catch(e => { console.error('Failed to fetch decisions:', e); return []; }),
     ]);
@@ -104,6 +150,11 @@ async function fetchSprints() {
     // Populate the decisions cache so loadDecisions renders instantly
     if (decisions && decisions.length) {
       decisionsData = decisions;
+      // ── Inject dummy superseded decisions for testing ──
+      decisionsData.push(
+        { source_id: 'TEST-SUP-1', title: 'Use Heroku for deployment', category: 'infrastructure', status: 'superseded', decision_date: '2026-01-10', confidence_score: 0.85, impact: 'Replaced by ECS Fargate for better scalability' },
+        { source_id: 'TEST-SUP-2', title: 'Use Bootstrap CSS framework', category: 'design', status: 'superseded', decision_date: '2026-01-12', confidence_score: 0.78, impact: 'Superseded by Tailwind for utility-first approach' }
+      );
       decisionsLoaded = true;
     }
   }
@@ -129,7 +180,7 @@ async function fetchSprints() {
   sessionStorage.setItem('dashboardLoaded', '1');
 
   // Step 1 – animate bar
-  setTimeout(() => { barFill.style.width = '30%'; loadText.textContent = 'Connecting to workspace...'; }, 300);
+  setTimeout(() => { barFill.style.width = '30%'; loadText.textContent = 'Connecting to ecosystem...'; }, 300);
   setTimeout(() => { barFill.style.width = '55%'; loadText.textContent = 'Fetching sprints & projects...'; }, 900);
 
   // Step 2 – fetch ALL data in parallel while animation runs
@@ -227,8 +278,30 @@ function esc(s) {
 
 // ── Timeline ─────────────────────────────────────────────────
 function buildTimeline() {
+  const wrap = document.getElementById('timelineWrap');
   const el = document.getElementById('timeline');
-  document.getElementById('timelineWrap').classList.add('visible');
+  wrap.classList.add('visible');
+
+  // ── Build header ──
+  let headerEl = wrap.querySelector('.tl-header');
+  if (!headerEl) {
+    headerEl = document.createElement('div');
+    headerEl.className = 'tl-header';
+    wrap.insertBefore(headerEl, wrap.firstChild);
+  }
+  const doneCount = SPRINTS.filter(s => s.status === 'completed').length;
+  headerEl.innerHTML = `
+    <div class="tl-header-icon">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    </div>
+    <div class="timeline-label">Project Timeline — ONBOARD</div>
+    <div class="tl-header-count">${doneCount}/${SPRINTS.length} completed</div>`;
+
+  // Remove the old static label if still present
+  const oldLabel = wrap.querySelector(':scope > .timeline-label');
+  if (oldLabel) oldLabel.remove();
+
+  // ── Progress percentage ──
   const ci = SPRINTS.findIndex(s => s.status === 'current');
   const pct = ci >= 0
     ? ((ci + .5) / SPRINTS.length) * 100
@@ -236,17 +309,19 @@ function buildTimeline() {
 
   let h = `<div class="timeline-progress" style="width:${pct}%"></div>`;
 
-  SPRINTS.forEach(sp => {
+  SPRINTS.forEach((sp, idx) => {
     const c = sp.status === 'completed' ? 'completed' : sp.status === 'current' ? 'current' : 'future';
     const t = sp.status === 'completed' ? 'done' : sp.status === 'current' ? 'active-tag' : 'upcoming';
-    const tx = sp.status === 'completed' ? 'Done' : sp.status === 'current' ? 'Active' : 'Upcoming';
+    const tx = sp.status === 'completed' ? 'DONE' : sp.status === 'current' ? 'ACTIVE' : 'UPCOMING';
+
+    // Icons
     const ic = sp.status === 'completed'
       ? '<polyline points="20 6 9 17 4 12"/>'
       : sp.status === 'current'
         ? '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'
-        : '<circle cx="12" cy="12" r="10"/>';
+        : '<circle cx="12" cy="12" r="3" fill="#3d5a80" stroke="none"/>';
 
-    h += `<div class="tl-node ${c}" data-id="${sp.id}" onclick="selectSprint('${sp.id}')">
+    h += `<div class="tl-node ${c}" data-id="${sp.id}" onclick="selectSprint('${sp.id}')" style="animation-delay:${idx * 60}ms">
       <div class="tl-dot-wrap"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic}</svg></div>
       <div class="tl-info">
         <div class="tl-sprint">${sp.name}</div>
@@ -368,9 +443,9 @@ function renderProjectStats(el, tickets) {
     <div class="ts-chip" style="--chip-c:var(--accent)"><span class="ts-num">${total}</span><span class="ts-txt">Tickets</span></div>
     <div class="ts-chip" style="--chip-c:var(--success)"><span class="ts-num">${completed}</span><span class="ts-txt">Done</span></div>
     <div class="ts-chip" style="--chip-c:var(--warn)"><span class="ts-num">${pending}</span><span class="ts-txt">Pending</span></div>
-    ${blockers > 0 ? `<div class="ts-chip ts-blocker" style="--chip-c:var(--danger)"><span class="ts-num">${blockers}</span><span class="ts-txt">Blockers</span></div>` : ''}
+    <div class="ts-chip ts-blocker" style="--chip-c:var(--danger)"><span class="ts-num">${blockers}</span><span class="ts-txt">Blockers</span></div>
     <div class="ts-chip" style="--chip-c:var(--accent2)"><span class="ts-num">${inProgress}</span><span class="ts-txt">In Progress</span></div>
-    <div class="ts-chip" style="--chip-c:var(--text)"><span class="ts-num">${completedPts}/${totalPts}</span><span class="ts-txt">SP</span></div>
+    <div class="ts-chip" style="--chip-c:var(--text)"><span class="ts-num">${completedPts}/${totalPts}</span><span class="ts-txt">Story Pts</span></div>
   `;
 }
 
@@ -1183,14 +1258,50 @@ async function loadProjectRail() {
         + `<span class="prj-status-dot s-${statusCls}"></span></div>`
         + `<div class="prj-sub-links${isActive ? ' expanded' : ''}">`
         + `<a class="prj-sub-link${isActive && currentPage === 'overview' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','overview')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span class="nav-label">Overview</span></a>`
-        + `<a class="prj-sub-link${isActive && currentPage === 'integrations' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','integrations')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span class="nav-label">Workspace</span></a>`
+        + `<a class="prj-sub-link${isActive && currentPage === 'integrations' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','integrations')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span class="nav-label">Ecosystem</span></a>`
         + `</div>`;
     }).join('');
     // Update page title with the active project name
     updatePageTitle(currentPid);
+
+    // ── Auto-add logged-in user to the project team ──
+    await ensureUserInProjectTeam();
   } catch (e) {
     console.error('Failed to load project rail:', e);
     rail.innerHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
+  }
+}
+
+/**
+ * Ensures the currently logged-in user is part of the active project's team_members.
+ * If not, sends a POST to the backend to add them.
+ */
+async function ensureUserInProjectTeam() {
+  const currentUserName = sessionStorage.getItem('userName') || userName;
+  if (!currentUserName || !projectsCache.length) return;
+
+  const pid = new URLSearchParams(window.location.search).get('project');
+  const project = projectsCache.find(p => p.id === pid) || projectsCache[0];
+  if (!project) return;
+
+  const members = project.team_members || [];
+  const alreadyIn = members.some(m => m.toLowerCase() === currentUserName.toLowerCase());
+  if (alreadyIn) return;
+
+  try {
+    const res = await fetch(`/api/projects/${project.id}/add-member/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: currentUserName }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      // Update cache so the UI reflects it immediately
+      project.team_members = data.team_members || [...members, currentUserName];
+      console.log(`Added "${currentUserName}" to project team.`);
+    }
+  } catch (e) {
+    console.warn('Could not auto-add user to project team:', e);
   }
 }
 
@@ -1316,7 +1427,7 @@ function updatePageTitle(pid) {
   if (!pid && projectsCache.length) pid = projectsCache[0].id;
   const project = projectsCache.find(p => p.id === pid);
   const titleEl = document.querySelector('.page-title');
-  const pageSuffix = isIntegrationsPage() ? 'Workspace' : 'Overview';
+  const pageSuffix = isIntegrationsPage() ? 'Ecosystem' : 'Overview';
   if (titleEl && project) {
     titleEl.textContent = project.name + ' ' + pageSuffix;
     document.title = 'EX-CDI — ' + project.name + ' ' + pageSuffix;
@@ -1375,11 +1486,7 @@ function renderProjectGoal() {
   const teamList = members.length ? `
     <div class="pg-team">
       <div class="pg-team-list">
-        ${members.map(m => {
-          const initials = m.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-          const isOwner = m === owner;
-          return `<span class="pg-member${isOwner ? ' pg-member--owner' : ''}"><span class="pg-member-av">${initials}</span>${esc(m)}${isOwner ? '<span class="pg-owner-badge">Owner</span>' : ''}</span>`;
-        }).join('')}
+        ${members.map(m => buildMemberChip(m, m === owner)).join('')}
       </div>
     </div>` : '';
 
@@ -1476,7 +1583,7 @@ function renderProjectSummary() {
   setTimeout(() => renderDecisionMapInSummary(), 0);
 }
 
-// Decision Map: rendered under Project Summary card as a horizontal snake/zigzag
+// Decision Timeline Map: category filter buttons + overall snake view + vertical per-category
 function renderDecisionMapInSummary() {
   const container = document.getElementById('decisionMapContainer');
   if (!container || !decisionsData.length) return;
@@ -1484,105 +1591,215 @@ function renderDecisionMapInSummary() {
   if (!decisions.length) { container.innerHTML = ''; return; }
 
   const sorted = decisions.sort((a, b) => {
-    if (a.decision_date && b.decision_date) return new Date(a.decision_date) - new Date(b.decision_date);
-    return String(a.source_id).localeCompare(String(b.source_id));
+    if (a.decision_date && b.decision_date) return new Date(b.decision_date) - new Date(a.decision_date);
+    return String(b.source_id).localeCompare(String(a.source_id));
   });
 
+  // Category colors
   const catColors = ['#1e8fff','#6c5ce7','#00cec9','#e17055','#fdcb6e','#55efc4'];
-  const catNames = [...new Set(sorted.map(d => d.category || 'Uncategorized'))];
+  const catNames  = [...new Set(sorted.map(d => d.category || 'Uncategorized'))];
   const catColorMap = {};
   catNames.forEach((c, i) => { catColorMap[c] = catColors[i % catColors.length]; });
 
-  const nodeW  = 150;   // fixed node width (box-sizing:border-box)
-  const arrowW = 48;    // arrow connector width
-  const connColor = '#4a6a8a';
+  // Store on window for re-renders
+  window._dtmSorted = sorted;
+  window._dtmCatColorMap = catColorMap;
+  window._dtmCatNames = catNames;
 
-  let html = '<div style="margin-top:24px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.07);">';
+  let html = '<div class="dtm-section">';
 
-  // Collapsible header
-  html += `<div onclick="(function(e){var body=e.currentTarget.nextElementSibling;var chevron=e.currentTarget.querySelector('.dmap-chevron');if(body.style.display==='none'){body.style.display='block';chevron.style.transform='rotate(0deg)';}else{body.style.display='none';chevron.style.transform='rotate(-90deg)';}})(event)" style="display:flex;align-items:center;gap:10px;font-size:18px;font-weight:700;color:#fff;margin-bottom:14px;cursor:pointer;user-select:none;">`;
-  html += '<svg viewBox="0 0 24 24" width="20" height="20" stroke="#1e8fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-  html += ' Decision Map';
-  html += '<svg class="dmap-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="#7ea8d4" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;transition:transform 0.2s;transform:rotate(0deg);"><polyline points="6 9 12 15 18 9"/></svg>';
+  // ── Collapsible header ──
+  html += `<div class="dtm-header" onclick="(function(e){var b=e.currentTarget.nextElementSibling;var ch=e.currentTarget.querySelector('.dtm-chevron');if(b.style.display==='none'){b.style.display='';ch.style.transform='rotate(0deg)';}else{b.style.display='none';ch.style.transform='rotate(-90deg)';}})(event)">`;
+  html += '<svg viewBox="0 0 24 24" width="22" height="22" stroke="#00e5ff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  html += '<span>DECISION TIMELINE MAP</span>';
+  html += '<svg class="dtm-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="#7ea8d4" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
   html += '</div>';
 
-  // Collapsible body (visible by default)
-  html += '<div style="display:block;">';
+  // ── Body ──
+  html += '<div>';
 
-  // Legend
-  html += '<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">';
+  // Category filter buttons
+  html += '<div class="dtm-filters">';
+  html += `<button class="dtm-filter-btn active" data-cat="overall" onclick="window._dtmSetFilter('overall',this)" style="--btn-c:#00e5ff">Overall</button>`;
+  html += `<button class="dtm-filter-btn" data-cat="grouped" onclick="window._dtmSetFilter('grouped',this)" style="--btn-c:#00e5ff">Grouped</button>`;
   catNames.forEach(c => {
-    html += `<span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#b0c4e7;"><span style="width:10px;height:10px;border-radius:50%;background:${catColorMap[c]};display:inline-block;"></span>${esc(c)}</span>`;
+    const clr = catColorMap[c];
+    html += `<button class="dtm-filter-btn" data-cat="${esc(c)}" onclick="window._dtmSetFilter('${esc(c)}',this)" style="--btn-c:${clr}">${esc(c)}</button>`;
   });
   html += '</div>';
 
-  // Snake / zigzag: 5 per row
-  const perRow = 5;
+  // View container
+  html += '<div id="dtmViewContainer"></div>';
+
+  html += '</div></div>';
+  container.innerHTML = html;
+
+  // Render initial "Overall" view
+  window._dtmSetFilter('overall', container.querySelector('.dtm-filter-btn.active'));
+}
+
+// Filter handler
+window._dtmSetFilter = function(cat, btnEl) {
+  // Update active button
+  const allBtns = document.querySelectorAll('.dtm-filter-btn');
+  allBtns.forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+
+  const viewContainer = document.getElementById('dtmViewContainer');
+  if (!viewContainer) return;
+
+  if (cat === 'overall') {
+    _dtmRenderOverall(viewContainer);
+  } else if (cat === 'grouped') {
+    _dtmRenderGrouped(viewContainer, null);
+  } else {
+    _dtmRenderGrouped(viewContainer, cat);
+  }
+};
+
+// Overall snake/zigzag view (existing logic, without LIVE badge)
+function _dtmRenderOverall(container) {
+  const sorted = window._dtmSorted;
+  const catColorMap = window._dtmCatColorMap;
+  const nodeW  = 200;
+  const arrowW = 48;
+  const perRow = 4;
+  const connColor = '#3a5068';
+
   const rows = [];
   for (let i = 0; i < sorted.length; i += perRow) rows.push(sorted.slice(i, i + perRow));
-
-  // Total width of a full row: perRow nodes + (perRow-1) arrows
   const fullRowW = perRow * nodeW + (perRow - 1) * arrowW;
 
-  // Outer scroll wrapper
-  html += '<div style="padding-bottom:10px;overflow-x:auto;">';
-  // Inner wrapper at exact row width so flex-end / flex-start work correctly
-  html += `<div style="width:${fullRowW}px;min-width:${fullRowW}px;">`;
+  let html = `<div style="width:${fullRowW}px;min-width:${fullRowW}px;">`;
 
   rows.forEach((row, rowIdx) => {
     const isReversed = rowIdx % 2 === 1;
     const displayRow = isReversed ? [...row].reverse() : row;
 
-    // ── Horizontal row ──
-    html += '<div style="display:flex;align-items:center;">';
+    const rowJustify = isReversed ? 'justify-content:flex-end;' : '';
+    html += `<div style="display:flex;align-items:center;${rowJustify}">`;
     displayRow.forEach((d, colIdx) => {
       const cat   = d.category || 'Uncategorized';
       const color = catColorMap[cat];
       const isSup = d.status === 'superseded';
-      const dateStr = d.decision_date || '';
 
-      // Node box (fixed width, border-box)
-      html += `<div style="box-sizing:border-box;background:#0a1628;border:2px solid ${color};border-radius:10px;padding:10px 14px;color:#fff;width:${nodeW}px;min-width:${nodeW}px;text-align:center;box-shadow:0 2px 8px 0 rgba(30,143,255,0.08);${isSup ? 'opacity:0.5;border-style:dashed;' : ''}">`;
-      html += `<div style="font-size:13px;font-weight:600;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(d.title || d.source_id)}">${esc(d.title || d.source_id)}</div>`;
-      if (dateStr) html += `<div style="font-size:10px;color:#7ea8d4;font-family:monospace;">${esc(dateStr)}</div>`;
-      if (isSup) html += '<div style="display:inline-block;margin-top:3px;font-size:10px;color:#fdcb6e;background:rgba(253,203,110,0.12);border-radius:5px;padding:1px 7px;">Superseded</div>';
+      if (isSup) {
+        html += `<div class="dtm-card sup" style="width:${nodeW}px;min-width:${nodeW}px;">`;
+        html += '<span class="dtm-card-badge superseded">SUPERSEDED</span>';
+      } else {
+        html += `<div class="dtm-card" style="width:${nodeW}px;min-width:${nodeW}px;border-color:${color};box-shadow:0 0 18px ${color}55, 0 0 36px ${color}22, inset 0 0 12px ${color}11;">`;
+      }
+      html += `<div class="dtm-card-title" title="${esc(d.title || d.source_id)}">${esc(d.title || d.source_id)}</div>`;
+      if (d.decision_date) html += `<div class="dtm-card-date">${esc(d.decision_date)}</div>`;
       html += '</div>';
 
-      // Arrow between nodes
       if (colIdx < displayRow.length - 1) {
-        html += `<div style="display:flex;align-items:center;width:${arrowW}px;min-width:${arrowW}px;position:relative;">`;
-        html += `<div style="width:100%;height:2px;background:${connColor};"></div>`;
         if (isReversed) {
-          html += `<div style="position:absolute;left:0;top:50%;transform:translateY(-50%);width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-right:8px solid ${connColor};"></div>`;
+          html += `<svg width="${arrowW}" height="20" viewBox="0 0 ${arrowW} 20" style="flex-shrink:0;display:block;">`;
+          html += `<line x1="0" y1="10" x2="${arrowW - 8}" y2="10" stroke="${connColor}" stroke-width="2"/>`;
+          html += `<polygon points="${arrowW},10 ${arrowW - 10},4 ${arrowW - 10},16" fill="${connColor}"/>`;
+          html += '</svg>';
         } else {
-          html += `<div style="position:absolute;right:0;top:50%;transform:translateY(-50%);width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid ${connColor};"></div>`;
+          html += `<svg width="${arrowW}" height="20" viewBox="0 0 ${arrowW} 20" style="flex-shrink:0;display:block;">`;
+          html += `<line x1="${arrowW}" y1="10" x2="8" y2="10" stroke="${connColor}" stroke-width="2"/>`;
+          html += `<polygon points="0,10 10,4 10,16" fill="${connColor}"/>`;
+          html += '</svg>';
         }
-        html += '</div>';
       }
     });
     html += '</div>';
 
-    // ── Vertical connector between rows ──
     if (rowIdx < rows.length - 1) {
-      // After L→R row (even): drop from rightmost node → next R→L row starts on right
-      // After R→L row (odd):  drop from leftmost node  → next L→R row starts on left
-      // Calculate exact left offset to center the connector under the correct node
-      let offsetPx;
-      if (!isReversed) {
-        // L→R row: connector under LAST node (rightmost) – center of last node
-        const lastNodeIdx = row.length - 1; // 0-based index in this row
-        offsetPx = lastNodeIdx * (nodeW + arrowW) + nodeW / 2;
-      } else {
-        // R→L row: connector under FIRST displayed (leftmost) node – center of first node
-        offsetPx = nodeW / 2;
-      }
-      html += `<div style="position:relative;width:100%;height:40px;">`;
-      html += `<div style="position:absolute;left:${offsetPx}px;transform:translateX(-50%);width:2px;height:100%;background:${connColor};">`;
-      html += `<div style="position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid ${connColor};"></div>`;
+      const alignRight = !isReversed;
+      const padVal = (nodeW / 2 - 1);
+      const justify = alignRight ? 'flex-end' : 'flex-start';
+      const padProp = alignRight ? 'padding-right' : 'padding-left';
+
+      html += `<div style="display:flex;justify-content:${justify};${padProp}:${padVal}px;height:40px;">`;
+      html += `<div style="width:2px;background:${connColor};height:100%;position:relative;">`;
+      html += `<div style="position:absolute;top:-4px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid ${connColor};"></div>`;
       html += '</div></div>';
     }
   });
-  html += '</div></div></div></div>';
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// Multi-column grouped view — cat=null shows all categories as columns,
+// cat=string shows just that category as a single column
+function _dtmRenderGrouped(container, cat) {
+  const sorted = window._dtmSorted;
+  const catColorMap = window._dtmCatColorMap;
+
+  // Build column data: one column per category (or single when filtered)
+  let columns; // [{label, color, decisions}]
+  if (cat) {
+    const color = catColorMap[cat] || '#1e8fff';
+    const decisions = sorted.filter(d => (d.category || 'Uncategorized') === cat);
+    columns = decisions.length ? [{ label: cat, color, decisions }] : [];
+  } else {
+    // Group by category, preserve category order from legend
+    const catOrder = Object.keys(catColorMap);
+    const grouped = {};
+    sorted.forEach(d => {
+      const c = d.category || 'Uncategorized';
+      if (!grouped[c]) grouped[c] = [];
+      grouped[c].push(d);
+    });
+    columns = catOrder
+      .filter(c => grouped[c] && grouped[c].length)
+      .map(c => ({ label: c, color: catColorMap[c] || '#1e8fff', decisions: grouped[c] }));
+  }
+
+  if (!columns.length) {
+    container.innerHTML = '<p style="color:var(--muted);padding:16px 0;font-size:14px;">No decisions found.</p>';
+    return;
+  }
+
+  let html = '<div class="dtm-col-grid">';
+
+  columns.forEach(col => {
+    const { label, color, decisions } = col;
+
+    html += '<div class="dtm-col">';
+    // Category header pill
+    html += `<div class="dtm-col-header" style="border-color:${color};color:${color}">`;
+    html += `${esc(label)}`;
+    html += '</div>';
+
+    // Arrow down from header
+    html += `<svg class="dtm-col-arrow" viewBox="0 0 20 32"><line x1="10" y1="0" x2="10" y2="24" stroke="${color}" stroke-width="2"/><polygon points="10,32 5,22 15,22" fill="${color}"/></svg>`;
+
+    decisions.forEach((d, i) => {
+      const isSup = d.status === 'superseded';
+      const cardBorder = isSup ? '#c0c6ce' : color;
+      const cardBg = isSup ? '#e8ecf1' : '#0c1a2e';
+      const cardTextColor = isSup ? '#2a3038' : '#fff';
+      const glowStyle = isSup
+        ? 'box-shadow:0 2px 8px rgba(0,0,0,0.10);'
+        : `box-shadow:0 0 14px ${color}44, 0 0 28px ${color}18;`;
+      const summary = d.description || d.impact || d.rationale || '';
+
+      // Decision card
+      html += `<div class="dtm-col-card" style="border-color:${cardBorder};background:${cardBg};color:${cardTextColor};${glowStyle}">`;
+      if (isSup) html += '<span class="dtm-card-badge superseded">SUPERSEDED</span>';
+      html += `<div class="dtm-col-card-title">${esc(d.title || d.source_id)}</div>`;
+      if (summary) html += `<div class="dtm-col-tooltip">${esc(summary)}</div>`;
+      html += '</div>';
+
+      // Arrow between cards (not after last)
+      if (i < decisions.length - 1) {
+        const nextSup = decisions[i + 1].status === 'superseded';
+        const arrColor = (isSup || nextSup) ? '#c0c6ce' : color;
+        html += `<svg class="dtm-col-arrow" viewBox="0 0 20 32"><line x1="10" y1="0" x2="10" y2="24" stroke="${arrColor}" stroke-width="2"/><polygon points="10,32 5,22 15,22" fill="${arrColor}"/></svg>`;
+      }
+    });
+
+    html += '</div>'; // .dtm-col
+  });
+
+  html += '</div>'; // .dtm-col-grid
   container.innerHTML = html;
 }
 window.renderProjectSummary = renderProjectSummary;

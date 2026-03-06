@@ -160,6 +160,35 @@ html, body {
   transition: border-color 0.25s, box-shadow 0.25s;
 }
 
+.form-group select {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.25s, box-shadow 0.25s;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237ea8d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  padding-right: 2.2rem;
+}
+.form-group select option {
+  background: #0b1528;
+  color: var(--text-primary);
+}
+.form-group select:focus {
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 3px rgba(30,143,255,0.12);
+}
+
 .form-group input::placeholder { color: var(--text-muted); }
 
 .form-group input:focus {

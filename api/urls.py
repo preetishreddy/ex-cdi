@@ -32,6 +32,11 @@ urlpatterns = [
     path(
         "projects/<uuid:pk>/", views.ProjectDetailView.as_view(), name="project-detail"
     ),
+    path(
+        "projects/<uuid:pk>/add-member/", views.ProjectAddMemberView.as_view(), name="project-add-member"
+    ),
+    # Register
+    path("register/", views.RegisterView.as_view(), name="register"),
     # Employees
     path("employees/", views.EmployeeListView.as_view(), name="employee-list"),
     path("employees/<uuid:pk>/", views.EmployeeDetailView.as_view(), name="employee-detail"),

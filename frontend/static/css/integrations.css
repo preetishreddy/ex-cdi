@@ -585,20 +585,20 @@
 .ni-item.hidden { display: none; }
 
 .ni-icon {
-  width: 42px; height: 42px;
-  border-radius: 11px;
+  width: 48px; height: 48px;
+  border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.ni-icon svg { width: 20px; height: 20px; }
+.ni-icon svg { width: 28px; height: 28px; }
 
-/* Brand colors */
-.ni-icon.zoom      { background: linear-gradient(135deg, #2d8cff, #0b5cff); color: #fff; }
-.ni-icon.gmeet     { background: linear-gradient(135deg, #00897b, #00bfa5); color: #fff; }
-.ni-icon.slack     { background: linear-gradient(135deg, #611f69, #e01e5a); color: #fff; }
-.ni-icon.teams     { background: linear-gradient(135deg, #5059c9, #7b83eb); color: #fff; }
-.ni-icon.outlook   { background: linear-gradient(135deg, #0078d4, #28a8ea); color: #fff; }
-.ni-icon.trello    { background: linear-gradient(135deg, #0079bf, #00c2e0); color: #fff; }
+/* Brand backgrounds — subtle dark so multicolor SVGs show through */
+.ni-icon.zoom      { background: rgba(45,140,255,0.12); }
+.ni-icon.gmeet     { background: rgba(0,131,45,0.12); }
+.ni-icon.slack     { background: rgba(97,31,105,0.12); }
+.ni-icon.teams     { background: rgba(80,89,201,0.12); }
+.ni-icon.outlook   { background: rgba(0,120,212,0.12); }
+.ni-icon.trello    { background: rgba(0,121,191,0.12); }
 
 .ni-info {
   display: flex; flex-direction: column; gap: 1px; flex: 1;

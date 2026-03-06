@@ -36,6 +36,41 @@
         </div>
 
         <div class="form-group">
+          <label for="role">Role</label>
+          <select id="role" name="role" required>
+            <option value="" disabled selected>Select your role</option>
+            <option value="Frontend Engineer">Frontend Engineer</option>
+            <option value="Backend Engineer">Backend Engineer</option>
+            <option value="Full Stack Engineer">Full Stack Engineer</option>
+            <option value="ML Engineer">ML Engineer</option>
+            <option value="DevOps Engineer">DevOps Engineer</option>
+            <option value="QA Engineer">QA Engineer</option>
+            <option value="Data Engineer">Data Engineer</option>
+            <option value="Product Manager">Product Manager</option>
+            <option value="Engineering Manager">Engineering Manager</option>
+            <option value="Designer">Designer</option>
+            <option value="Architect">Architect</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="department">Department</label>
+          <select id="department" name="department" required>
+            <option value="" disabled selected>Select your department</option>
+            <option value="Engineering">Engineering</option>
+            <option value="Product">Product</option>
+            <option value="Design">Design</option>
+            <option value="Data Science">Data Science</option>
+            <option value="QA">QA</option>
+            <option value="DevOps">DevOps</option>
+            <option value="Infrastructure">Infrastructure</option>
+            <option value="Management">Management</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label for="password">Password</label>
           <div class="input-password-wrap">
             <input type="password" id="password" name="password" placeholder="Create a strong password" autocomplete="new-password" required>
@@ -80,5 +115,54 @@
   </div>
 
   <script src="static/js/auth.js"></script>
+  <script>
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var al = document.getElementById('registerAlert');
+      al.style.display = 'none';
+      var name       = document.getElementById('full_name').value.trim();
+      var email      = document.getElementById('email').value.trim();
+      var role       = document.getElementById('role').value;
+      var department = document.getElementById('department').value;
+      var pass       = document.getElementById('password').value;
+      var confirm    = document.getElementById('confirm_password').value;
+
+      if (!name) { al.textContent = 'Please enter your full name.'; al.style.display = 'block'; return; }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { al.textContent = 'Please enter a valid work email address.'; al.style.display = 'block'; return; }
+      if (!role) { al.textContent = 'Please select your role.'; al.style.display = 'block'; return; }
+      if (!department) { al.textContent = 'Please select your department.'; al.style.display = 'block'; return; }
+      if (pass.length < 8) { al.textContent = 'Password must be at least 8 characters.'; al.style.display = 'block'; return; }
+      if (pass !== confirm) { al.textContent = 'Passwords do not match.'; al.style.display = 'block'; return; }
+
+      // Register the user as an Employee in the backend
+      try {
+        var btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.textContent = 'Creating Account...';
+        var res = await fetch('/api/register/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, email: email, role: role, department: department }),
+        });
+        var data = await res.json();
+        if (!res.ok) {
+          btn.disabled = false; btn.textContent = 'Create Account';
+          al.textContent = data.error || 'Registration failed. Please try again.';
+          al.style.display = 'block'; return;
+        }
+      } catch (err) {
+        btn.disabled = false; btn.textContent = 'Create Account';
+        al.textContent = 'Network error. Please try again.';
+        al.style.display = 'block'; return;
+      }
+
+      // Set session and redirect to dashboard
+      sessionStorage.setItem('isLoggedIn', '1');
+      sessionStorage.setItem('userEmail', email);
+      sessionStorage.setItem('userName', name);
+      sessionStorage.setItem('jiraDomain', email.split('@')[1] || '');
+      sessionStorage.removeItem('dashboardLoaded');
+      window.location.href = 'project_dashboard.html';
+    });
+  </script>
 </body>
 </html>

@@ -124,6 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
       hideAlerts();
       const name    = registerForm.querySelector('#full_name').value.trim();
       const email   = registerForm.querySelector('#email').value.trim();
+      const role    = registerForm.querySelector('#role') ? registerForm.querySelector('#role').value : '';
+      const dept    = registerForm.querySelector('#department') ? registerForm.querySelector('#department').value : '';
       const pass    = registerForm.querySelector('#password').value;
       const confirm = registerForm.querySelector('#confirm_password').value;
 
@@ -135,6 +137,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!email || !isValidEmail(email)) {
         e.preventDefault();
         showAlert('registerAlert', 'Please enter a valid work email address.');
+        return;
+      }
+      if (!role) {
+        e.preventDefault();
+        showAlert('registerAlert', 'Please select your role.');
+        return;
+      }
+      if (!dept) {
+        e.preventDefault();
+        showAlert('registerAlert', 'Please select your department.');
         return;
       }
       if (pass.length < 8) {

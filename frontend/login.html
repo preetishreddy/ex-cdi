@@ -223,6 +223,7 @@
       }
       sessionStorage.setItem('isLoggedIn', '1');
       sessionStorage.setItem('userEmail', email);
+      sessionStorage.setItem('userName', email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, function(l){ return l.toUpperCase(); }));
       sessionStorage.setItem('jiraDomain', email.split('@')[1] || '');
       sessionStorage.removeItem('dashboardLoaded');   // ensure loading animation plays
       window.location.href = 'project_dashboard.html';

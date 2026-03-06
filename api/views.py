@@ -275,6 +275,54 @@ class ProjectDetailView(generics.RetrieveAPIView):
     queryset = Project.objects.prefetch_related('entities').all()
 
 
+class ProjectAddMemberView(APIView):
+    """Add a team member to a project's team_members list."""
+
+    @extend_schema(
+        tags=['Projects'],
+        summary='Add a member to a project team',
+        description='Appends a name to the project\'s team_members list if not already present.',
+        request=inline_serializer('AddMemberRequest', fields={
+            'name': drf_serializers.CharField(),
+        }),
+        responses={
+            200: inline_serializer('AddMemberResponse', fields={
+                'status': drf_serializers.CharField(),
+                'team_members': drf_serializers.ListField(child=drf_serializers.CharField()),
+            }),
+            404: _ErrorSerializer,
+        },
+    )
+    def post(self, request, pk):
+        import json as _json
+        try:
+            project = Project.objects.get(pk=pk)
+        except Project.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=404)
+
+        name = request.data.get('name', '').strip()
+        if not name:
+            return Response({'error': 'name is required'}, status=400)
+
+        # Parse existing team_members
+        members = []
+        if project.team_members:
+            try:
+                members = _json.loads(project.team_members)
+                if not isinstance(members, list):
+                    members = []
+            except (_json.JSONDecodeError, TypeError):
+                members = []
+
+        # Add only if not already present (case-insensitive check)
+        if not any(m.lower() == name.lower() for m in members):
+            members.append(name)
+            project.team_members = _json.dumps(members)
+            project.save(update_fields=['team_members'])
+
+        return Response({'status': 'ok', 'team_members': members})
+
+
 # ── Search ────────────────────────────────────────────────────────────────────
 
 class SearchView(views.APIView):
@@ -458,6 +506,81 @@ class SprintMeetingsView(views.APIView):
             meeting_date__date__lte=sprint.end_date,
         )
         return Response(MeetingDetailSerializer(meetings, many=True).data)
+
+
+# ── Register (create Employee) ───────────────────────────────────────────────
+
+class RegisterView(APIView):
+    """Register a new user by creating an Employee record."""
+
+    @extend_schema(
+        tags=['Auth'],
+        summary='Register a new user',
+        description='Creates an Employee record with name, email, role, and department.',
+        request=inline_serializer('RegisterRequest', fields={
+            'name': drf_serializers.CharField(),
+            'email': drf_serializers.EmailField(),
+            'role': drf_serializers.CharField(required=False),
+            'department': drf_serializers.CharField(required=False),
+        }),
+        responses={
+            201: EmployeeSerializer,
+            400: _ErrorSerializer,
+        },
+    )
+    def post(self, request):
+        name = request.data.get('name', '').strip()
+        email = request.data.get('email', '').strip()
+        role = request.data.get('role', '').strip()
+        department = request.data.get('department', '').strip()
+
+        if not name:
+            return Response({'error': 'Name is required.'}, status=400)
+        if not email:
+            return Response({'error': 'Email is required.'}, status=400)
+
+        # Check if an employee with this email already exists
+        existing = Employee.objects.filter(email__iexact=email).first()
+        if existing:
+            # Update the existing record with any new info
+            if role:
+                existing.role = role
+            if department:
+                existing.department = department
+            if name:
+                existing.name = name
+            existing.is_active = True
+            existing.source = 'registration'
+            existing.save()
+            serializer = EmployeeSerializer(existing)
+            return Response(serializer.data, status=200)
+
+        # Also check by name
+        existing_name = Employee.objects.filter(name__iexact=name).first()
+        if existing_name:
+            if role:
+                existing_name.role = role
+            if department:
+                existing_name.department = department
+            if email:
+                existing_name.email = email
+            existing_name.is_active = True
+            existing_name.source = 'registration'
+            existing_name.save()
+            serializer = EmployeeSerializer(existing_name)
+            return Response(serializer.data, status=200)
+
+        # Create new employee
+        employee = Employee.objects.create(
+            name=name,
+            email=email,
+            role=role or None,
+            department=department or None,
+            source='registration',
+            is_active=True,
+        )
+        serializer = EmployeeSerializer(employee)
+        return Response(serializer.data, status=201)
 
 
 # ── Employees ────────────────────────────────────────────────────────────────
