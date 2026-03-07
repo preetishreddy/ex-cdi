@@ -478,20 +478,44 @@ function renderHistoryList() {
       const responseHtml = textToHtml(data.answer);
 
       // Convert source strings ("decision:Why we chose React") to result cards
+      const sourceIcons = {
+        decision:   '⚖️',
+        confluence: '📄',
+        jira:       '🎫',
+        commit:     '🔀',
+        meeting:    '📅',
+        github:     '🐙',
+      };
       const results = (data.sources || []).map(s => {
         const colonIdx = s.indexOf(':');
-        const type = colonIdx > -1 ? s.substring(0, colonIdx) : s;
+        const type = colonIdx > -1 ? s.substring(0, colonIdx).toLowerCase() : s.toLowerCase();
         const title = colonIdx > -1 ? s.substring(colonIdx + 1).trim() : s;
         return {
           type: type.charAt(0).toUpperCase() + type.slice(1),
+          icon: sourceIcons[type] || '📎',
           title: title || s,
-          meta: data.intent ? `intent: ${data.intent} · turn ${data.turn || 1}` : '',
+          meta: data.intent ? `${data.intent.replace(/_/g, ' ')} · turn ${data.turn || 1}` : '',
         };
       });
 
+      // Build confidence badge
+      const conf = data.confidence != null ? data.confidence : null;
+      const confLabel = conf !== null
+        ? (conf >= 0.7 ? 'high' : conf >= 0.4 ? 'medium' : 'low')
+        : null;
+      const intentBadge = data.intent
+        ? `<span class="msg-intent-badge">${escHtml(data.intent.replace(/_/g, ' '))}</span>`
+        : '';
+      const confBadge = confLabel
+        ? `<span class="msg-conf-badge msg-conf-${confLabel}">${Math.round(conf * 100)}% confidence</span>`
+        : '';
+      const metaHtml = (intentBadge || confBadge)
+        ? `<div class="msg-response-meta">${intentBadge}${confBadge}</div>`
+        : '';
+
       completeAllSteps();
       hideThinking();
-      addMessage('bot', responseHtml, { results });
+      addMessage('bot', metaHtml + responseHtml, { results });
 
     } catch (err) {
       console.error('Solution error:', err);
@@ -516,11 +540,14 @@ function renderHistoryList() {
 
   function renderResults(results) {
     if (!results || !results.length) return '';
-    return `<div class="msg-results">${results.map(r => `
+    return `<div class="msg-results"><div class="msg-results-label">Sources</div>${results.map(r => `
       <div class="msg-result-card">
-        <div class="msg-result-card-type">${escHtml(r.type)}</div>
-        <div class="msg-result-card-title">${escHtml(r.title)}</div>
-        <div class="msg-result-card-meta">${escHtml(r.meta)}</div>
+        <span class="msg-result-icon">${r.icon || '📎'}</span>
+        <div class="msg-result-body">
+          <div class="msg-result-card-type">${escHtml(r.type)}</div>
+          <div class="msg-result-card-title">${escHtml(r.title)}</div>
+          <div class="msg-result-card-meta">${escHtml(r.meta)}</div>
+        </div>
       </div>
     `).join('')}</div>`;
   }
@@ -533,18 +560,93 @@ function renderHistoryList() {
     return d.innerHTML;
   }
 
-  // Convert plain-text LLM output to safe HTML paragraphs
+  // ── Markdown → HTML renderer ────────────────────────────
+  // Handles: **bold**, *italic*, `code`, ```blocks```, headers,
+  //          numbered lists, bullet lists, and paragraphs.
   function textToHtml(text) {
     if (!text) return '<p>No response received.</p>';
-    return text
-      .split(/\n\n+/)
-      .map(para => {
-        const trimmed = para.trim();
-        if (!trimmed) return '';
-        return `<p>${escHtml(trimmed).replace(/\n/g, '<br>')}</p>`;
-      })
-      .filter(Boolean)
-      .join('');
+
+    // Normalise line endings
+    const raw = text.replace(/\r\n/g, '\n');
+
+    // Split into blocks separated by blank lines
+    const blocks = raw.split(/\n\n+/);
+    const htmlParts = [];
+
+    for (const block of blocks) {
+      const trimmed = block.trim();
+      if (!trimmed) continue;
+
+      // Fenced code block (```)
+      if (trimmed.startsWith('```')) {
+        const code = trimmed.replace(/^```[^\n]*\n?/, '').replace(/```$/, '');
+        htmlParts.push(`<pre class="msg-code-block"><code>${escHtml(code)}</code></pre>`);
+        continue;
+      }
+
+      // Header lines (# … ####)
+      if (/^#{1,4}\s/.test(trimmed)) {
+        const level = trimmed.match(/^(#+)/)[1].length;
+        const content = trimmed.replace(/^#+\s*/, '');
+        htmlParts.push(`<h${level + 1} class="msg-heading">${inlineMd(content)}</h${level + 1}>`);
+        continue;
+      }
+
+      const lines = trimmed.split('\n');
+
+      // Numbered list (1. … / 2. …)
+      if (/^\d+[\.\)]\s/.test(lines[0])) {
+        htmlParts.push(parseList(lines, 'ol'));
+        continue;
+      }
+
+      // Bullet list (- … / * … / • …)
+      if (/^[-*•]\s/.test(lines[0])) {
+        htmlParts.push(parseList(lines, 'ul'));
+        continue;
+      }
+
+      // Regular paragraph
+      htmlParts.push(`<p>${inlineMd(escHtml(trimmed).replace(/\n/g, '<br>'))}</p>`);
+    }
+
+    return htmlParts.join('');
+  }
+
+  /** Parse a block of list lines into <ol>/<ul> with nested sub-items */
+  function parseList(lines, tag) {
+    let html = `<${tag} class="msg-list">`;
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      // Detect sub-item (indented - or * or numbered)
+      const isSubItem = /^\s+[-*•]\s/.test(line) || /^\s+\d+[\.\)]\s/.test(line);
+      const text = line.replace(/^\s*[-*•\d.\)]+\s*/, '');
+
+      if (isSubItem) {
+        // Collect consecutive sub-items
+        const subLines = [];
+        while (i < lines.length && (/^\s+[-*•]\s/.test(lines[i]) || /^\s+\d+[\.\)]\s/.test(lines[i]))) {
+          subLines.push(lines[i]);
+          i++;
+        }
+        const subTag = /^\s+\d+[\.\)]\s/.test(subLines[0]) ? 'ol' : 'ul';
+        html += parseList(subLines.map(l => l.replace(/^\s{2,4}/, '')), subTag);
+      } else {
+        html += `<li>${inlineMd(escHtml(text))}</li>`;
+        i++;
+      }
+    }
+    html += `</${tag}>`;
+    return html;
+  }
+
+  /** Apply inline markdown: **bold**, *italic*, `code` */
+  function inlineMd(html) {
+    return html
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code class="msg-inline-code">$1</code>');
   }
 
   function generateId() {
