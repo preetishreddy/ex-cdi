@@ -1,5 +1,5 @@
 /* ============================================================
-   EX-CDI — Solution Chat (Agentic Mode)
+   LightHouse — Solution Chat (Agentic Mode)
    ============================================================
    AI-powered assistant panel backed by the real OnboardingChatbot
    on the Django backend (/api/chat/). Supports multi-turn

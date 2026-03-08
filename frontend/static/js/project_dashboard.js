@@ -1,5 +1,5 @@
 /* ============================================================
-  EX-CDI — Project Overview JavaScript
+  LightHouse — Project Overview JavaScript
   ============================================================ */
 let SPRINTS = [];
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -177,7 +177,7 @@ async function fetchSprints() {
     renderProjectGoal();
     renderProjectSummary();
     applyPageRouting();
-    if (!isIntegrationsPage()) {
+    if (getCurrentPage() === 'overview') {
       document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
       loadProjectTicketStats();
       buildTimeline();
@@ -211,7 +211,7 @@ async function fetchSprints() {
     renderProjectGoal();
     renderProjectSummary();
     applyPageRouting();
-    if (!isIntegrationsPage()) {
+    if (getCurrentPage() === 'overview') {
       document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
       loadProjectTicketStats();
       buildTimeline();
@@ -394,9 +394,6 @@ function selectSprint(id) {
 
     <div class="tab-content" id="dp-decisions">
       <div class="decisions-loading"><div class="spinner"></div>Click to load decisions...</div>
-    </div>
-    <div class="tab-content" id="dp-decision-map" style="display:none">
-      <div id="decisionMapContainer"></div>
     </div>`;
 
   p.classList.remove('visible');
@@ -1265,6 +1262,7 @@ async function loadProjectRail() {
         + `<span class="prj-status-dot s-${statusCls}"></span></div>`
         + `<div class="prj-sub-links${isActive ? ' expanded' : ''}">`
         + `<a class="prj-sub-link${isActive && currentPage === 'overview' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','overview')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span class="nav-label">Overview</span></a>`
+        + `<a class="prj-sub-link${isActive && currentPage === 'decisions' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','decisions')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="nav-label">Decisions</span></a>`
         + `<a class="prj-sub-link${isActive && currentPage === 'integrations' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','integrations')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span class="nav-label">Ecosystem</span></a>`
         + `</div>`;
     }).join('');
@@ -1403,7 +1401,8 @@ function rerenderRailActiveStates(projectId, page) {
       const links = subLinks.querySelectorAll('.prj-sub-link');
       links.forEach(a => a.classList.remove('active-sub'));
       if (isActive) {
-        const activeLink = page === 'integrations' ? links[1] : links[0];
+        const linkIdx = page === 'integrations' ? 2 : page === 'decisions' ? 1 : 0;
+        const activeLink = links[linkIdx];
         if (activeLink) activeLink.classList.add('active-sub');
       }
     }
@@ -1434,10 +1433,10 @@ function updatePageTitle(pid) {
   if (!pid && projectsCache.length) pid = projectsCache[0].id;
   const project = projectsCache.find(p => p.id === pid);
   const titleEl = document.querySelector('.page-title');
-  const pageSuffix = isIntegrationsPage() ? 'Ecosystem' : 'Overview';
+  const pageSuffix = isDecisionsPage() ? 'Decisions' : isIntegrationsPage() ? 'Ecosystem' : 'Overview';
   if (titleEl && project) {
     titleEl.textContent = project.name + ' ' + pageSuffix;
-    document.title = 'EX-CDI — ' + project.name + ' ' + pageSuffix;
+    document.title = 'LightHouse — ' + project.name + ' ' + pageSuffix;
   }
 }
 
@@ -1583,16 +1582,13 @@ function renderProjectSummary() {
       <span class="ps-status s-${statusCls}">${esc(status)}</span>
     </div>
     <div class="ps-text">${sentences.join(' ')}</div>
-    <div id="decisionMapContainer"></div>
   `;
   banner.style.display = '';
-
-  setTimeout(() => renderDecisionMapInSummary(), 0);
 }
 
-// Decision Timeline Map: category filter buttons + overall snake view + vertical per-category
-function renderDecisionMapInSummary() {
-  const container = document.getElementById('decisionMapContainer');
+// Decision Timeline Map: renders into the dedicated decisions page
+function renderDecisionMapPage() {
+  const container = document.getElementById('decisionMapPageContainer');
   if (!container || !decisionsData.length) return;
   const decisions = [...decisionsData];
   if (!decisions.length) { container.innerHTML = ''; return; }
@@ -1608,22 +1604,13 @@ function renderDecisionMapInSummary() {
   const catColorMap = {};
   catNames.forEach((c, i) => { catColorMap[c] = catColors[i % catColors.length]; });
 
+
   // Store on window for re-renders
   window._dtmSorted = sorted;
   window._dtmCatColorMap = catColorMap;
   window._dtmCatNames = catNames;
 
   let html = '<div class="dtm-section">';
-
-  // ── Collapsible header ──
-  html += `<div class="dtm-header" onclick="(function(e){var b=e.currentTarget.nextElementSibling;var ch=e.currentTarget.querySelector('.dtm-chevron');if(b.style.display==='none'){b.style.display='';ch.style.transform='rotate(0deg)';}else{b.style.display='none';ch.style.transform='rotate(-90deg)';}})(event)">`;
-  html += '<svg viewBox="0 0 24 24" width="22" height="22" stroke="#00e5ff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-  html += '<span>DECISION TIMELINE MAP</span>';
-  html += '<svg class="dtm-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="#7ea8d4" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
-  html += '</div>';
-
-  // ── Body ──
-  html += '<div>';
 
   // Category filter buttons
   html += '<div class="dtm-filters">';
@@ -1637,7 +1624,7 @@ function renderDecisionMapInSummary() {
   // View container
   html += '<div id="dtmViewContainer"></div>';
 
-  html += '</div></div>';
+  html += '</div>';
   container.innerHTML = html;
 
   // Render initial "Grouped" view
@@ -1817,14 +1804,25 @@ function isIntegrationsPage() {
   return new URLSearchParams(window.location.search).get('page') === 'integrations';
 }
 
-// Toggle between overview and integrations content
+function isDecisionsPage() {
+  return new URLSearchParams(window.location.search).get('page') === 'decisions';
+}
+
+function getCurrentPage() {
+  return new URLSearchParams(window.location.search).get('page') || 'overview';
+}
+
+// Toggle between overview, decisions, and integrations content
 function applyPageRouting() {
-  const isIg = isIntegrationsPage();
+  const page = getCurrentPage();
   const overviewEl = document.getElementById('overviewContent');
   const igEl = document.getElementById('integrationsContent');
-  if (overviewEl) overviewEl.style.display = isIg ? 'none' : '';
-  if (igEl) igEl.style.display = isIg ? '' : 'none';
-  if (isIg) loadIntegrationsData();
+  const dmEl = document.getElementById('decisionsContent');
+  if (overviewEl) overviewEl.style.display = page === 'overview' ? '' : 'none';
+  if (dmEl) dmEl.style.display = page === 'decisions' ? '' : 'none';
+  if (igEl) igEl.style.display = page === 'integrations' ? '' : 'none';
+  if (page === 'integrations') loadIntegrationsData();
+  if (page === 'decisions') renderDecisionMapPage();
 }
 
 async function loadIntegrationsData() {

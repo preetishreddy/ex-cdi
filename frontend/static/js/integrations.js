@@ -1,5 +1,5 @@
 /* ============================================================
-   EX-CDI — Integrations Page Logic
+   LightHouse — Integrations Page Logic
    ============================================================ */
 
 const API = '/api';

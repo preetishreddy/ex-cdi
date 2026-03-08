@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EX-CDI — Project Overview</title>
+<title>LightHouse — Project Overview</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="static/css/project_dashboard.css">
 <link rel="stylesheet" href="static/css/integrations.css">
@@ -14,7 +14,7 @@
 <nav class="sidebar" id="sidebar">
   <div class="sidebar-top-row">
     <button class="sidebar-hamburger" id="sidebarToggle" title="Toggle sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-    <div class="sidebar-logo"><div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><div class="logo-text">EX-<span>CDI</span></div></div>
+    <div class="sidebar-logo"><div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M10.5 5a1.5 1.5 0 0 1 3 0"/><path d="M10 5h4v3h-4z"/><path d="M10 8L8 19h8l-2-11z"/><line x1="10" y1="11" x2="14" y2="13"/><line x1="9.3" y1="15" x2="14.7" y2="17"/><path d="M6 19h12v2H6z"/><line x1="14" y1="5.5" x2="20" y2="2.5"/><line x1="14.5" y1="7" x2="21" y2="5"/><path d="M21 1.5v2M20 2.5h2"/></svg></div><div class="logo-text">Light<span>House</span></div></div>
   </div>
   <div class="sidebar-section">Projects</div>
   <div class="project-rail" id="projectRail">
@@ -40,6 +40,20 @@
     <div class="timeline-wrap" id="timelineWrap"><div class="timeline" id="timeline"></div></div>
     <div class="content-row">
       <div class="detail-panel" id="detailPanel"></div>
+    </div>
+  </div>
+  <div class="content dm-content" id="decisionsContent" style="display:none">
+    <div class="dm-card">
+      <div class="dm-card-header">
+        <div class="dm-header-icon">
+          <svg viewBox="0 0 24 24" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="dm-header-text">
+          <h2 class="dm-page-title">Decision Timeline Map</h2>
+          <p class="dm-page-subtitle">Explore all decisions across categories and sprints</p>
+        </div>
+      </div>
+      <div class="dm-card-body" id="decisionMapPageContainer"></div>
     </div>
   </div>
   <div class="content ig-content" id="integrationsContent" style="display:none">
@@ -186,7 +200,7 @@
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loading-content">
     <div class="loading-orbit-wrap">
-      <div class="loading-logo"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+      <div class="loading-logo"><svg viewBox="0 0 24 24"><path d="M10.5 5a1.5 1.5 0 0 1 3 0"/><path d="M10 5h4v3h-4z"/><path d="M10 8L8 19h8l-2-11z"/><line x1="10" y1="11" x2="14" y2="13"/><line x1="9.3" y1="15" x2="14.7" y2="17"/><path d="M6 19h12v2H6z"/><line x1="14" y1="5.5" x2="20" y2="2.5"/><line x1="14.5" y1="7" x2="21" y2="5"/><path d="M21 1.5v2M20 2.5h2"/></svg></div>
       <div class="orbit-ring"></div>
       <div class="orbit-icon orbit-icon-1" title="Jira">
         <svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="ojg1" x1="98%" y1="0%" x2="58%" y2="42%"><stop offset="18%" stop-color="#0052cc"/><stop offset="100%" stop-color="#2684ff"/></linearGradient><linearGradient id="ojg2" x1="2%" y1="100%" x2="42%" y2="58%"><stop offset="18%" stop-color="#0052cc"/><stop offset="100%" stop-color="#2684ff"/></linearGradient></defs><path d="M22.16 11.1L13.07 2 12 .94 4.52 8.42.84 12.1a.59.59 0 0 0 0 .84L7.66 19.6 12 23.94l7.48-7.48.38-.38 2.3-2.3a.57.57 0 0 0 0-.82zM12 15.4L8.6 12 12 8.6 15.4 12 12 15.4z" fill="#2684ff"/><path d="M12 8.6a5.27 5.27 0 0 1-.04-7.44L4.5 8.6l3.56 3.56L12 8.6z" fill="url(#ojg1)"/><path d="M15.42 11.97L12 15.4a5.27 5.27 0 0 1 0 7.48l7.5-7.48-4.08-3.43z" fill="url(#ojg2)"/></svg>
@@ -201,7 +215,7 @@
         <svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="ocg1" x1="99%" y1="5%" x2="45%" y2="96%"><stop offset="0%" stop-color="#0052cc"/><stop offset="92%" stop-color="#2684ff"/></linearGradient><linearGradient id="ocg2" x1="1%" y1="95%" x2="55%" y2="4%"><stop offset="0%" stop-color="#0052cc"/><stop offset="92%" stop-color="#2684ff"/></linearGradient></defs><path d="M2.2 16.5c-.16.28-.36.62-.36.62a.44.44 0 0 0 .18.6l3.9 2.34a.44.44 0 0 0 .6-.16s.55-.98 1.25-2.02c2.26-3.3 4.54-2.6 8.42-.94l4.06 1.74a.45.45 0 0 0 .58-.22l1.98-4.6a.44.44 0 0 0-.22-.56c-1.56-.68-4.68-2.02-7.56-3.24C9.16 7.8 4.56 11.14 2.2 16.5z" fill="url(#ocg1)"/><path d="M21.8 7.5c.16-.28.36-.62.36-.62a.44.44 0 0 0-.18-.6l-3.9-2.34a.44.44 0 0 0-.6.16s-.55.98-1.25 2.02c-2.26 3.3-4.54 2.6-8.42.94L3.75 5.32a.45.45 0 0 0-.58.22L1.19 10.14a.44.44 0 0 0 .22.56c1.56.68 4.68 2.02 7.56 3.24C14.84 16.2 19.44 12.86 21.8 7.5z" fill="url(#ocg2)"/></svg>
       </div>
     </div>
-    <div class="loading-title">EX-<span>CDI</span></div>
+    <div class="loading-title">Light<span>House</span></div>
     <div class="loading-bar"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
     <div class="loading-text" id="loadingText">Initializing...</div>
   </div>
