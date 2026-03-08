@@ -204,6 +204,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'email', 'role', 'department',
             'source', 'jira_account_id', 'github_username', 'is_active',
+            'created_at',
         ]
 
 

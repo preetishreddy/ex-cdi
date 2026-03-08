@@ -1360,6 +1360,21 @@ body.solution-open .main {
   border-radius: 8px; margin-left: 2px; text-transform: uppercase;
   letter-spacing: .3px;
 }
+.pg-new-badge {
+  font-size: 10px; font-weight: 700; color: #facc15;
+  background: rgba(250,204,21,0.12); padding: 1px 7px;
+  border-radius: 8px; margin-left: 3px; text-transform: uppercase;
+  letter-spacing: .4px; border: 1px solid rgba(250,204,21,0.25);
+  animation: newBadgePulse 2s ease-in-out infinite;
+}
+.pg-member--new { border-color: rgba(250,204,21,0.35); }
+.pg-member--new .pg-member-av {
+  background: linear-gradient(135deg, #facc15, #f59e0b);
+}
+@keyframes newBadgePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
 
 /* ── Member Hover Tooltip ── */
 .pg-member-tooltip {

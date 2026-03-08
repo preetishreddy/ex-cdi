@@ -29,6 +29,15 @@ function findEmployeeByName(name) {
   return employeesCache.find(e => e.name && e.name.toLowerCase() === lower) || null;
 }
 
+/** Check if a date string is within the last N days */
+function isWithinDays(dateStr, days) {
+  if (!dateStr) return false;
+  const created = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now - created;
+  return diffMs >= 0 && diffMs <= days * 24 * 60 * 60 * 1000;
+}
+
 /** Build a member chip with hover tooltip */
 function buildMemberChip(memberName, isOwner) {
   const initials = memberName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -36,6 +45,7 @@ function buildMemberChip(memberName, isOwner) {
   const email = emp?.email || '';
   const role = emp?.role || '';
   const dept = emp?.department || '';
+  const isNew = isWithinDays(emp?.created_at, 2);
   const teamsLink = email ? `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(email)}` : '';
   const mailLink = email ? `mailto:${email}` : '';
 
@@ -47,9 +57,10 @@ function buildMemberChip(memberName, isOwner) {
   if (teamsLink) tipRows += `<div class="pg-tip-row pg-tip-teams"><a href="${teamsLink}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:#7b83eb;text-decoration:none;font-weight:600;"><svg viewBox="0 0 24 24" width="14" height="14" fill="#7b83eb"><path d="M19.27 6.73a2.5 2.5 0 1 0-3.54 0 2.5 2.5 0 0 0 3.54 0zM22 12v5a2 2 0 0 1-2 2h-1v-6a3 3 0 0 0-3-3h-1.27A4.97 4.97 0 0 0 17 8h3a2 2 0 0 1 2 2v2zM12.5 4a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM15 11a2 2 0 0 1 2 2v5a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-5a2 2 0 0 1 2-2h11z"/></svg> Chat on Teams</a></div>`;
 
   const tooltip = tipRows ? `<div class="pg-member-tooltip"><div class="pg-tip-name">${esc(memberName)}</div>${tipRows}</div>` : '';
+  const newBadge = isNew ? '<span class="pg-new-badge">new</span>' : '';
 
-  return `<span class="pg-member${isOwner ? ' pg-member--owner' : ''}" style="position:relative;">`
-    + `<span class="pg-member-av">${initials}</span>${esc(memberName)}${isOwner ? '<span class="pg-owner-badge">Owner</span>' : ''}`
+  return `<span class="pg-member${isOwner ? ' pg-member--owner' : ''}${isNew ? ' pg-member--new' : ''}" style="position:relative;">`
+    + `<span class="pg-member-av">${initials}</span>${esc(memberName)}${newBadge}${isOwner ? '<span class="pg-owner-badge">Owner</span>' : ''}`
     + tooltip
     + `</span>`;
 }
@@ -466,7 +477,6 @@ function bCal(sp, meetings) {
     let type = 'planning';
     const titleLower = (m.title || '').toLowerCase();
     if (titleLower.includes('standup') || titleLower.includes('daily')) type = 'standup';
-    else if (titleLower.includes('retro')) type = 'retro';
     else if (titleLower.includes('review') || titleLower.includes('demo') || titleLower.includes('mid-sprint') || titleLower.includes('midsprint')) type = 'review';
     mm[mDate] = { ...m, date: mDate, type, name: m.title || 'Meeting', project: 'ONBOARD', time: '' };
   });
@@ -517,7 +527,7 @@ function bCal(sp, meetings) {
     h += '</div>';
   });
 
-  h += '<div class="cal-legend"><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent)"></div>Planning</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--success)"></div>Standup</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent2)"></div>Review</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--warn)"></div>Retro</div></div>';
+  h += '<div class="cal-legend"><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent)"></div>Planning</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--success)"></div>Standup</div><div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent2)"></div>Review</div></div>';
   return h;
 }
 
@@ -1023,7 +1033,6 @@ function setTktFilter(name) {
 function getMeetingTypeColor(type) {
   switch (type) {
     case 'standup': return 'var(--success)';
-    case 'retro':   return 'var(--warn)';
     case 'review':  return 'var(--accent2)';
     default:        return 'var(--accent)';
   }
@@ -1032,7 +1041,6 @@ function getMeetingTypeColor(type) {
 function getMeetingTypeIcon(type) {
   switch (type) {
     case 'standup':  return '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>';
-    case 'retro':    return '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>';
     case 'review':   return '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
     case 'planning': return '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>';
     default:         return '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
@@ -1104,7 +1112,6 @@ function openMeetingPopup(date, type, name, project, time, fallbackSummary) {
           planning: ['planning'],
           standup:  ['standup', 'daily'],
           review:  ['review', 'midsprint', 'mid-sprint', 'demo'],
-          retro:   ['retro', 'retrospective'],
         };
         const keywords = typeKeywords[type] || [type];
         match = meetings.find(m => {
