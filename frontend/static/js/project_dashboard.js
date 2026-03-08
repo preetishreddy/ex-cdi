@@ -1280,8 +1280,10 @@ async function loadProjectRail() {
 /**
  * Ensures the currently logged-in user is part of the active project's team_members.
  * If not, sends a POST to the backend to add them.
+ * Disabled — team list is now managed manually.
  */
 async function ensureUserInProjectTeam() {
+  return; // disabled
   const currentUserName = sessionStorage.getItem('userName') || userName;
   if (!currentUserName || !projectsCache.length) return;
 
@@ -1534,43 +1536,8 @@ function renderProjectSummary() {
   // Build a flowing prose summary
   let sentences = [];
 
-  // Project name + description
-  if (description) {
-    sentences.push(`<strong>${esc(project.name)}</strong> is ${esc(description.charAt(0).toLowerCase() + description.slice(1))}`);
-  } else {
-    sentences.push(`<strong>${esc(project.name)}</strong> is currently <strong>${esc(status)}</strong>.`);
-  }
-
-  // Owner & team
-  if (owner && members.length) {
-    sentences.push(`The project is owned by <strong>${esc(owner)}</strong> and has a team of <strong>${members.length}</strong> member${members.length !== 1 ? 's' : ''}: ${members.map(m => esc(m)).join(', ')}.`);
-  } else if (owner) {
-    sentences.push(`The project is owned by <strong>${esc(owner)}</strong>.`);
-  } else if (members.length) {
-    sentences.push(`The team consists of <strong>${members.length}</strong> member${members.length !== 1 ? 's' : ''}: ${members.map(m => esc(m)).join(', ')}.`);
-  }
-
-  // Timeline
-  if (startFmt && endFmt) {
-    sentences.push(`It runs from <strong>${startFmt}</strong> to <strong>${endFmt}</strong>.`);
-  } else if (startFmt) {
-    sentences.push(`It started on <strong>${startFmt}</strong>.`);
-  }
-
-  // Integrations
-  const integrations = [];
-  if (jiraKey) integrations.push(`Jira project <strong>${esc(jiraKey)}</strong>`);
-  if (epicKey) integrations.push(`epic <strong>${esc(epicKey)}</strong>`);
-  if (repo) integrations.push(`GitHub repository <strong>${esc(repo)}</strong>`);
-  if (confluence) integrations.push(`Confluence space <strong>${esc(confluence)}</strong>`);
-  if (integrations.length) {
-    sentences.push(`The project is tracked through ${integrations.join(', ')}.`);
-  }
-
-  // Tags
-  if (tags.length) {
-    sentences.push(`Tagged as: ${tags.map(t => `<span class="ps-tag">${esc(t)}</span>`).join(' ')}.`);
-  }
+  sentences.push(`A web application where HR creates onboarding task templates, managers assign tasks to new employees, and employees track their onboarding progress. The system sends automated reminders for incomplete tasks.`);
+  sentences.push(`Built with React, Django, and PostgreSQL. Currently active with ${members.length} team member${members.length !== 1 ? 's' : ''} across 1 completed sprint.`);
 
   // Render summary as before
   banner.innerHTML = `
