@@ -1855,17 +1855,18 @@ async function loadIgJira() {
     const completed = igTicketsData.filter(t => ['done','closed','resolved','complete','completed'].includes(t.status?.toLowerCase())).length;
     const inProgress = igTicketsData.filter(t => ['in progress','in review','in development'].includes(t.status?.toLowerCase())).length;
     const blockers = igTicketsData.filter(t => t.priority?.toLowerCase() === 'highest' || t.priority?.toLowerCase() === 'critical').length;
-    const el = (id) => document.getElementById(id);
-    el('jiraTotalTickets').textContent = igTicketsData.length;
-    el('jiraCompleted').textContent = completed;
-    el('jiraInProgress').textContent = inProgress;
-    el('jiraBlockers').textContent = blockers;
+    const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    s('jiraTotalTickets', igTicketsData.length);
+    s('jiraCompleted', completed);
+    s('jiraInProgress', inProgress);
+    s('jiraBlockers', blockers);
   } catch (e) { console.warn('Jira load error:', e); }
 }
 
 async function loadIgConfluence() {
   try {
     const res = await fetch('/api/pages/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     igPagesData = Array.isArray(data) ? data : (data.results || []);
     const spaces = new Set(igPagesData.map(p => p.space).filter(Boolean));
@@ -1873,17 +1874,18 @@ async function loadIgConfluence() {
     const latest = igPagesData.length
       ? igPagesData.reduce((a, b) => new Date(b.page_updated_date || 0) > new Date(a.page_updated_date || 0) ? b : a)
       : null;
-    const el = (id) => document.getElementById(id);
-    el('confTotalPages').textContent = igPagesData.length;
-    el('confSpaces').textContent = spaces.size;
-    el('confAuthors').textContent = authors.size;
-    el('confLatest').textContent = latest ? igFmtDate(latest.page_updated_date) : '—';
+    const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    s('confTotalPages', igPagesData.length);
+    s('confSpaces', spaces.size);
+    s('confAuthors', authors.size);
+    s('confLatest', latest ? igFmtDate(latest.page_updated_date) : '—');
   } catch (e) { console.warn('Confluence load error:', e); }
 }
 
 async function loadIgGithub() {
   try {
     const res = await fetch('/api/commits/');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     igCommitsData = Array.isArray(data) ? data : (data.results || []);
     const contributors = new Set(igCommitsData.map(c => c.author_name).filter(Boolean));
@@ -1891,11 +1893,11 @@ async function loadIgGithub() {
     const latest = igCommitsData.length
       ? igCommitsData.reduce((a, b) => new Date(b.commit_date || 0) > new Date(a.commit_date || 0) ? b : a)
       : null;
-    const el = (id) => document.getElementById(id);
-    el('ghTotalCommits').textContent = igCommitsData.length;
-    el('ghContributors').textContent = contributors.size;
-    el('ghFilesChanged').textContent = totalFiles;
-    el('ghLatest').textContent = latest ? igFmtDate(latest.commit_date) : '—';
+    const s = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    s('ghTotalCommits', igCommitsData.length);
+    s('ghContributors', contributors.size);
+    s('ghFilesChanged', totalFiles);
+    s('ghLatest', latest ? igFmtDate(latest.commit_date) : '—');
   } catch (e) { console.warn('GitHub load error:', e); }
 }
 
@@ -1974,17 +1976,68 @@ function renderIgJiraTable(tickets) {
 function renderIgConfluenceGrid(pages) {
   const body = document.getElementById('igDetailBody');
   if (!pages.length) { body.innerHTML = '<div class="ig-empty">No pages found</div>'; return; }
-  body.innerHTML = `<div class="ig-page-grid">${pages.map(p => `<div class="ig-page-card"><div class="ig-page-card-title">${esc(p.title)}</div><div class="ig-page-card-meta"><span>Space: ${esc(p.space||'—')}</span><span>Author: ${esc(p.author||'—')}</span><span>v${p.version||1}</span><span>${igFmtDate(p.page_updated_date)}</span></div>${(p.labels&&p.labels.length)?`<div class="ig-page-labels">${p.labels.map(l=>`<span class="ig-page-label">${esc(l)}</span>`).join('')}</div>`:''}</div>`).join('')}</div>`;
+  body.innerHTML = `<div class="ig-page-grid">${pages.map(p => {
+    const initials = (p.author || '?').split(/\s+/).map(w => w[0]).join('').substring(0,2).toUpperCase();
+    const created = igFmtDate(p.page_created_date);
+    const updated = igFmtDate(p.page_updated_date);
+    return `<div class="ig-page-card">
+      <div class="ig-page-card-top">
+        <div class="ig-page-icon"><svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+        <div class="ig-page-card-title">${esc(p.title)}</div>
+      </div>
+      <div class="ig-page-card-info">
+        <div class="ig-page-author"><span class="ig-page-author-av">${initials}</span>${esc(p.author || '—')}</div>
+        <div class="ig-page-version">v${p.version || 1}</div>
+      </div>
+      <div class="ig-page-card-meta">
+        <span><svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/></svg> ${esc(p.space || '—')}</span>
+        <span><svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Created ${created}</span>
+        <span><svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Updated ${updated}</span>
+      </div>
+      ${(p.labels && p.labels.length) ? `<div class="ig-page-labels">${p.labels.map(l => `<span class="ig-page-label">${esc(l)}</span>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('')}</div>`;
 }
 
 function renderIgCommitsTable(commits) {
   const body = document.getElementById('igDetailBody');
   if (!commits.length) { body.innerHTML = '<div class="ig-empty">No commits found</div>'; return; }
-  body.innerHTML = `<table class="ig-table"><thead><tr><th>SHA</th><th>Message</th><th>Author</th><th>Files</th><th>Changes</th><th>Date</th></tr></thead><tbody>${commits.map(c => {
-    const adds = (c.files||[]).reduce((s,f)=>s+(f.additions||0),0);
-    const dels = (c.files||[]).reduce((s,f)=>s+(f.deletions||0),0);
-    return `<tr><td><span class="ig-commit-sha">${esc((c.sha||'').substring(0,7))}</span></td><td class="ig-commit-msg" title="${esc(c.message)}">${esc((c.message||'').substring(0,60))}${(c.message||'').length>60?'...':''}</td><td class="cell-meta">${esc(c.author_name)}</td><td class="ig-commit-files">${(c.files||[]).length} file${(c.files||[]).length!==1?'s':''}</td><td class="cell-meta"><span class="ig-commit-additions">+${adds}</span> <span class="ig-commit-deletions">-${dels}</span></td><td class="cell-meta">${igFmtDate(c.commit_date)}</td></tr>`;
-  }).join('')}</tbody></table>`;
+  body.innerHTML = `<div class="ig-commits-list">${commits.map(c => {
+    const adds = (c.files||[]).reduce((s,f) => s + (f.additions||0), 0);
+    const dels = (c.files||[]).reduce((s,f) => s + (f.deletions||0), 0);
+    const firstLine = (c.message || '').split('\n')[0];
+    const restLines = (c.message || '').split('\n').slice(1).filter(l => l.trim()).join('\n');
+    const commitType = firstLine.match(/^(feat|fix|chore|docs|style|refactor|test|perf|ci|build):/i)?.[1]?.toLowerCase() || '';
+    const typeBadge = commitType ? `<span class="ig-commit-type ${commitType}">${commitType}</span>` : '';
+    const initials = (c.author_name || '?').split(/\s+/).map(w => w[0]).join('').substring(0,2).toUpperCase();
+    const relatedTickets = (c.related_tickets || []);
+    const uid = (c.sha || '').substring(0,7);
+    return `<div class="ig-commit-row">
+      <div class="ig-commit-row-main">
+        <div class="ig-commit-left">
+          <span class="ig-commit-sha">${esc(uid)}</span>
+          ${typeBadge}
+          <span class="ig-commit-title">${esc(firstLine.replace(/^(feat|fix|chore|docs|style|refactor|test|perf|ci|build):\s*/i, ''))}</span>
+        </div>
+        <div class="ig-commit-right">
+          <span class="ig-commit-author"><span class="ig-commit-author-av">${initials}</span>${esc(c.author_name || '—')}</span>
+          <span class="ig-commit-stats"><span class="ig-commit-additions">+${adds}</span><span class="ig-commit-deletions">-${dels}</span></span>
+          <span class="ig-commit-date">${igFmtDate(c.commit_date)}</span>
+        </div>
+      </div>
+      ${restLines ? `<div class="ig-commit-desc">${esc(restLines)}</div>` : ''}
+      ${relatedTickets.length ? `<div class="ig-commit-tickets">${relatedTickets.map(t => `<span class="ig-commit-ticket">${esc(t)}</span>`).join('')}</div>` : ''}
+      ${(c.files||[]).length ? `<div class="ig-commit-files-wrap">
+        <button class="ig-commit-files-toggle" onclick="this.parentElement.classList.toggle('open');this.textContent=this.parentElement.classList.contains('open')?'Hide ${(c.files||[]).length} file${(c.files||[]).length!==1?'s':''}':'Show ${(c.files||[]).length} file${(c.files||[]).length!==1?'s':''}'">
+          Show ${(c.files||[]).length} file${(c.files||[]).length!==1 ? 's' : ''}
+        </button>
+        <div class="ig-commit-files-list">${(c.files||[]).map(f => {
+          const statusCls = f.status === 'added' ? 'added' : f.status === 'deleted' ? 'deleted' : 'modified';
+          return `<div class="ig-commit-file ${statusCls}"><span class="ig-cf-status">${f.status === 'added' ? 'A' : f.status === 'deleted' ? 'D' : 'M'}</span><span class="ig-cf-name">${esc(f.filename)}</span><span class="ig-cf-changes"><span class="ig-commit-additions">+${f.additions||0}</span><span class="ig-commit-deletions">-${f.deletions||0}</span></span></div>`;
+        }).join('')}</div>
+      </div>` : ''}
+    </div>`;
+  }).join('')}</div>`;
 }
 
 function igStatusBadge(status) {
