@@ -430,6 +430,8 @@ class OnboardingChatbot:
             'ticket_query': f"I couldn't find information about {entity_str} in my current data. Please verify the ticket ID is correct.",
             
             'decision_query': f"I don't have specific information about decisions related to {entity_str} in my current data.",
+            'conflict_query': "No conflicts have been detected between active decisions yet. Run check_conflicts.py to scan for them.",
+            'provenance_query': f"I couldn't find a decision matching '{entity_str}'. Try using part of the decision title, e.g. 'trace the JWT decision' or 'where did Tailwind come from?'",
             
             'meeting_query': f"I don't have information about meetings related to {entity_str} in my current data.",
             
@@ -453,6 +455,8 @@ class OnboardingChatbot:
             'meeting_query': "Focus on what was discussed, decisions made, and action items.",
             'sprint_summary_query': "Provide a comprehensive sprint overview.",
             'list_query': "List all items requested with key details.",
+            'conflict_query': "List every detected conflict clearly. For each conflict state: which two decisions conflict, the severity (high/medium/low), the conflict type (direct/indirect/potential), and a plain-English explanation of why they conflict. Be direct and structured.",
+            'provenance_query': "Narrate the full provenance chain: where the decision came from, which Jira tickets followed, which commits implemented it, and any known conflicts. Tell the story chronologically in plain English.",
             'general_query': "Provide helpful information based on the context.",
         }
         
@@ -637,6 +641,16 @@ def print_help():
         ("List queries:", [
             "What Confluence pages are available?",
             "List all decisions",
+        ]),
+        ("Conflict queries:", [
+            "Are there any conflicting decisions?",
+            "Does SQLAlchemy conflict with anything?",
+            "Show me architectural conflicts",
+        ]),
+        ("Provenance queries:", [
+            "Where did the JWT decision come from?",
+            "Trace the Tailwind CSS decision",
+            "Show me the history behind SQLAlchemy",
         ]),
     ]
     

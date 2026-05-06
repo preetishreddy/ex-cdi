@@ -23,12 +23,14 @@ from django.db.models import Q, Count
 
 models = get_models()
 Decision = models['Decision']
+DecisionConflict = models['DecisionConflict']
 Meeting = models['Meeting']
 JiraTicket = models['JiraTicket']
 ConfluencePage = models['ConfluencePage']
 GitCommit = models['GitCommit']
 Sprint = models['Sprint']
 SprintTicket = models['SprintTicket']
+EntityReference = models['EntityReference']
 
 from .base import BaseRetriever, Document
 
@@ -70,6 +72,8 @@ class SQLRetriever(BaseRetriever):
             'ticket_query': self._retrieve_ticket_info,
             'meeting_query': self._retrieve_meetings,
             'sprint_summary_query': self._retrieve_sprint_summary,
+            'conflict_query': self._retrieve_conflicts,
+            'provenance_query': self._retrieve_provenance,
             'general_query': self._retrieve_general,
         }
         
@@ -905,6 +909,259 @@ PROGRESS: {done}/{total} ({completion_pct:.0f}%)
         
         return documents[:limit]
     
+    # =========================================
+    # CONFLICT QUERIES
+    # =========================================
+
+    def _retrieve_conflicts(self, query: str, entities: List[str], limit: int) -> List[Document]:  # noqa: ARG002
+        """Retrieve all detected conflicts, optionally filtered to a specific decision."""
+        conflicts = DecisionConflict.objects.select_related(
+            'decision_a', 'decision_b'
+        ).order_by('-severity', 'decision_a__title')
+
+        # Narrow to a specific decision if an entity matches a title
+        if entities:
+            for entity in entities:
+                if isinstance(entity, str) and len(entity) > 3:
+                    filtered = conflicts.filter(
+                        Q(decision_a__title__icontains=entity) |
+                        Q(decision_b__title__icontains=entity)
+                    )
+                    if filtered.exists():
+                        conflicts = filtered
+                        break
+
+        if not conflicts.exists():
+            return [Document(
+                content="No conflicts have been detected between active decisions.",
+                title="No Conflicts Found",
+                source_type='conflict_summary',
+                source_id='',
+                source_table='decision_conflicts',
+                date=None,
+                related_tickets=[],
+                related_people=[],
+                metadata={'count': 0}
+            )]
+
+        by_sev = {'high': [], 'medium': [], 'low': []}
+        for c in conflicts:
+            by_sev[c.severity].append(c)
+
+        lines = [f"DETECTED CONFLICTS ({conflicts.count()} total)\n"]
+        for sev in ('high', 'medium', 'low'):
+            group = by_sev[sev]
+            if not group:
+                continue
+            lines.append(f"── {sev.upper()} SEVERITY ──")
+            for c in group:
+                lines.append(f"  [{c.conflict_type}]  {c.decision_a.title}")
+                lines.append(f"          ↔  {c.decision_b.title}")
+                if c.explanation:
+                    lines.append(f"          Explanation: {c.explanation}")
+                lines.append("")
+
+        lines.append(f"Summary: {len(by_sev['high'])} high, "
+                     f"{len(by_sev['medium'])} medium, "
+                     f"{len(by_sev['low'])} low severity conflicts.")
+
+        return [Document(
+            content="\n".join(lines),
+            title=f"Decision Conflicts ({conflicts.count()} detected)",
+            source_type='conflict_summary',
+            source_id='',
+            source_table='decision_conflicts',
+            date=None,
+            related_tickets=[],
+            related_people=[],
+            relevance_score=1.0,
+            metadata={'count': conflicts.count(), 'severities': {k: len(v) for k, v in by_sev.items()}}
+        )]
+
+    # =========================================
+    # PROVENANCE QUERIES
+    # =========================================
+
+    def _retrieve_provenance(self, query: str, entities: List[str], limit: int) -> List[Document]:
+        """Trace origin → tickets → commits for a decision."""
+        # Find decision by title keywords from query + entities
+        decision = None
+        search_terms = list(entities) + [w for w in query.split() if len(w) > 4]
+
+        for term in search_terms:
+            if isinstance(term, str) and len(term) >= 3:
+                results = Decision.objects.filter(title__icontains=term, status='active')
+                if results.count() == 1:
+                    decision = results.first()
+                    break
+                if results.count() > 1:
+                    # Prefer exact-ish match
+                    decision = results.order_by('decision_date').first()
+                    break
+
+        if not decision:
+            return [Document(
+                content="I couldn't identify which decision you're asking about. "
+                        "Try being more specific, e.g. 'trace the JWT decision' or "
+                        "'where did the Tailwind decision come from?'",
+                title="Decision Not Found",
+                source_type='provenance',
+                source_id='',
+                source_table='decisions',
+                date=None,
+                related_tickets=[],
+                related_people=[],
+                metadata={'error': True}
+            )]
+
+        # ── Origin ──
+        origin_lines = []
+        if decision.source_id:
+            if decision.source_type == 'meeting':
+                m = Meeting.objects.filter(id=decision.source_id).first()
+                if m:
+                    origin_lines.append(f"Origin: Meeting — {m.title}")
+                    if m.meeting_date:
+                        origin_lines.append(f"Date: {m.meeting_date.strftime('%Y-%m-%d')}")
+                    if m.participants:
+                        import re as _re
+                        parts = list(set(_re.findall(r'[A-Z][a-z]+ [A-Z][a-z]+', m.participants)))[:6]
+                        if parts:
+                            origin_lines.append(f"Participants: {', '.join(parts)}")
+            elif decision.source_type == 'confluence':
+                cp = ConfluencePage.objects.filter(id=decision.source_id).first()
+                if cp:
+                    origin_lines.append(f"Origin: Confluence — {cp.title}")
+                    if cp.author:
+                        origin_lines.append(f"Author: {cp.author}")
+            elif decision.source_type == 'jira':
+                jt = JiraTicket.objects.filter(id=decision.source_id).first()
+                if jt:
+                    origin_lines.append(f"Origin: Jira — {jt.issue_key}: {jt.summary}")
+
+        # ── Tickets ──
+        ticket_keys = []
+        if decision.source_id:
+            refs = EntityReference.objects.filter(
+                source_type=decision.source_type,
+                source_id=decision.source_id,
+                reference_type='jira_ticket',
+            )
+            ticket_keys = [r.reference_id for r in refs
+                           if r.reference_id and not r.reference_id[:4].isdigit()]
+        if decision.related_tickets:
+            ticket_keys = list(set(ticket_keys + list(decision.related_tickets)))
+
+        ticket_lines = []
+        ticket_objs = []
+        for key in ticket_keys[:8]:
+            jt = JiraTicket.objects.filter(issue_key=key).first()
+            if jt:
+                assignee = f" → {jt.assignee}" if jt.assignee else ""
+                ticket_lines.append(f"  {jt.issue_key} [{jt.status}]  {jt.summary[:60]}{assignee}")
+                ticket_objs.append(jt)
+            else:
+                ticket_lines.append(f"  {key}")
+
+        # ── Commits ──
+        commit_lines = []
+        seen_ids = set()
+
+        for key in ticket_keys:
+            for ref in EntityReference.objects.filter(
+                source_type='commit', reference_type='jira_ticket', reference_id=key
+            ):
+                if ref.source_id in seen_ids:
+                    continue
+                gc = GitCommit.objects.filter(id=ref.source_id).first()
+                if gc:
+                    seen_ids.add(ref.source_id)
+                    date = gc.commit_date.strftime('%Y-%m-%d') if gc.commit_date else '?'
+                    sha = gc.sha[:8] if gc.sha else str(gc.id)[:8]
+                    commit_lines.append(
+                        f"  [{date}] {sha}  {gc.message.split(chr(10))[0][:70]}  ({gc.author_name})"
+                    )
+
+        for tag in (decision.tags or []):
+            for gc in GitCommit.objects.filter(message__icontains=tag).order_by('commit_date')[:5]:
+                if gc.id in seen_ids:
+                    continue
+                seen_ids.add(gc.id)
+                date = gc.commit_date.strftime('%Y-%m-%d') if gc.commit_date else '?'
+                sha = gc.sha[:8] if gc.sha else str(gc.id)[:8]
+                commit_lines.append(
+                    f"  [{date}] {sha}  {gc.message.split(chr(10))[0][:70]}  ({gc.author_name})"
+                )
+
+        commit_lines = sorted(set(commit_lines))[:12]
+
+        # ── Conflicts ──
+        conflict_lines = []
+        for c in DecisionConflict.objects.filter(
+            Q(decision_a=decision) | Q(decision_b=decision)
+        ).select_related('decision_a', 'decision_b'):
+            other = c.decision_b if c.decision_a_id == decision.id else c.decision_a
+            conflict_lines.append(
+                f"  [{c.severity.upper()}] {c.conflict_type} ↔ {other.title[:60]}"
+            )
+            if c.explanation:
+                conflict_lines.append(f"        {c.explanation[:100]}")
+
+        # ── Assemble document ──
+        parts = [
+            f"PROVENANCE CHAIN: {decision.title}",
+            f"Date: {decision.decision_date}  |  Category: {decision.category or 'unknown'}  |  Status: {decision.status}",
+            "",
+        ]
+        if decision.rationale:
+            parts += ["WHY:", f"  {decision.rationale[:300]}", ""]
+        if decision.tags:
+            parts.append(f"Tags: {', '.join(decision.tags)}\n")
+
+        parts.append(f"ORIGIN:")
+        parts += (origin_lines if origin_lines else ["  (not recorded)"])
+        parts.append("")
+
+        parts.append(f"LINKED TICKETS ({len(ticket_keys)}):")
+        parts += (ticket_lines if ticket_lines else ["  none"])
+        parts.append("")
+
+        parts.append(f"COMMITS ({len(commit_lines)}):")
+        parts += (commit_lines if commit_lines else ["  none found"])
+        parts.append("")
+
+        if conflict_lines:
+            parts.append("KNOWN CONFLICTS:")
+            parts += conflict_lines
+            parts.append("")
+
+        if decision.superseded_by:
+            parts.append(f"SUPERSEDED BY: {decision.superseded_by.title}")
+
+        related_tickets = [t.issue_key for t in ticket_objs]
+        related_people = list(set(
+            (decision.decided_by or []) +
+            [t.assignee for t in ticket_objs if t.assignee]
+        ))
+
+        return [Document(
+            content="\n".join(parts),
+            title=f"Provenance: {decision.title[:60]}",
+            source_type='provenance',
+            source_id=str(decision.id),
+            source_table='decisions',
+            date=decision.decision_date,
+            related_tickets=related_tickets,
+            related_people=related_people,
+            relevance_score=1.0,
+            metadata={
+                'decision_title': decision.title,
+                'ticket_count': len(ticket_keys),
+                'commit_count': len(commit_lines),
+                'has_conflicts': bool(conflict_lines),
+            }
+        )]
+
     def _retrieve_general(self, query: str, entities: List[str], limit: int) -> List[Document]:
         """General fallback."""
         documents = []

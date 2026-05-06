@@ -38,6 +38,7 @@ def get_models():
     """
     from knowledge_base.models import (
         Decision,
+        DecisionConflict,
         Meeting,
         JiraTicket,
         ConfluencePage,
@@ -47,9 +48,10 @@ def get_models():
         SprintTicket,
         EntityReference,
     )
-    
+
     return {
         'Decision': Decision,
+        'DecisionConflict': DecisionConflict,
         'Meeting': Meeting,
         'JiraTicket': JiraTicket,
         'ConfluencePage': ConfluencePage,

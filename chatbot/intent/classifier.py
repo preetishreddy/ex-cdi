@@ -69,7 +69,25 @@ class IntentClassifier:
                 entities=entities,
                 original_query=query
             )
-        
+
+        # Step 3b: Check for conflict query
+        if self._is_conflict_query(query_lower):
+            return ClassifiedIntent(
+                intent_type=IntentType.CONFLICT_QUERY,
+                confidence=0.92,
+                entities=entities,
+                original_query=query
+            )
+
+        # Step 3c: Check for provenance query
+        if self._is_provenance_query(query_lower):
+            return ClassifiedIntent(
+                intent_type=IntentType.PROVENANCE_QUERY,
+                confidence=0.92,
+                entities=entities,
+                original_query=query
+            )
+
         # Step 4: Check for person query (IMPROVED)
         if self._is_person_query(query_lower, entities):
             return ClassifiedIntent(
@@ -166,6 +184,22 @@ class IntentClassifier:
         
         return False
     
+    def _is_conflict_query(self, query_lower: str) -> bool:
+        conflict_patterns = [
+            'conflict', 'contradict', 'inconsisten', 'clash', 'incompatible',
+            'opposing decision', 'tension between', 'contradictory',
+        ]
+        return any(p in query_lower for p in conflict_patterns)
+
+    def _is_provenance_query(self, query_lower: str) -> bool:
+        provenance_patterns = [
+            'where did', 'come from', 'origin of', 'history of', 'trace',
+            'led to', 'resulted in', 'what happened after', 'commits after',
+            'full history', 'how did we get', 'provenance', 'source of the decision',
+            'background of', 'background behind',
+        ]
+        return any(p in query_lower for p in provenance_patterns)
+
     def _is_sprint_summary_query(self, query_lower: str, entities: List[str]) -> bool:
         """Check if query is asking for a sprint summary."""
         has_sprint_number = any(e.isdigit() for e in entities if isinstance(e, str))

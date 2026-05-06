@@ -20,7 +20,9 @@ class IntentType(Enum):
     STATUS_QUERY = "status_query"
     TICKET_QUERY = "ticket_query"
     MEETING_QUERY = "meeting_query"
-    SPRINT_SUMMARY_QUERY = "sprint_summary_query"  # NEW
+    SPRINT_SUMMARY_QUERY = "sprint_summary_query"
+    CONFLICT_QUERY = "conflict_query"
+    PROVENANCE_QUERY = "provenance_query"
     GENERAL_QUERY = "general_query"
 
 
@@ -172,6 +174,41 @@ INTENT_CONFIGS: Dict[IntentType, IntentConfig] = {
         ]
     ),
     
+    IntentType.CONFLICT_QUERY: IntentConfig(
+        intent_type=IntentType.CONFLICT_QUERY,
+        keywords=[
+            'conflict', 'conflicts', 'conflicting', 'contradict', 'contradicts',
+            'contradiction', 'inconsistent', 'inconsistency', 'clash', 'clashes',
+            'incompatible', 'opposing', 'tension', 'contradictory',
+        ],
+        tables=['decision_conflicts', 'decisions'],
+        description="Questions about conflicting architectural decisions",
+        example_queries=[
+            "Are there any conflicting decisions?",
+            "What decisions contradict each other?",
+            "Does using SQLAlchemy conflict with anything?",
+            "Show me architectural conflicts",
+        ]
+    ),
+
+    IntentType.PROVENANCE_QUERY: IntentConfig(
+        intent_type=IntentType.PROVENANCE_QUERY,
+        keywords=[
+            'provenance', 'where did', 'come from', 'origin', 'history of',
+            'trace', 'tracing', 'background', 'led to', 'resulted in',
+            'what happened after', 'commits after', 'full history',
+            'how did we get', 'evidence', 'source of',
+        ],
+        tables=['decisions', 'entity_references', 'git_commits', 'jira_tickets'],
+        description="Questions tracing the origin and impact of a decision",
+        example_queries=[
+            "Where did the decision to use JWT come from?",
+            "Show me the history behind the Tailwind CSS switch",
+            "What commits followed the JWT decision?",
+            "Trace the SQLAlchemy decision",
+        ]
+    ),
+
     IntentType.GENERAL_QUERY: IntentConfig(
         intent_type=IntentType.GENERAL_QUERY,
         keywords=[],  # Fallback - no specific keywords
