@@ -402,9 +402,160 @@ Supersession chains:
 
 ---
 
+## Change 4: LLM Conflict Detection
+
+### What changed
+
+- `database/scripts/check_conflicts.py` (new) — two-stage conflict detection pipeline
+- `database/scripts/migrate_add_conflicts_table.sql` (new) — DB schema for conflicts
+- `database/knowledge_base/models.py` — added `DecisionConflict` model
+
+---
+
+### The problem it solves
+
+A decision recorded in Sprint 1 can silently contradict a decision made in Sprint 2. No existing onboarding tool detects this. The team only discovers the conflict when a new engineer tries to implement both — or worse, in production. LIGHTHOUSE surfaces these contradictions automatically as they accumulate.
+
+---
+
+### New table: `decision_conflicts`
+
+```sql
+CREATE TABLE decision_conflicts (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    decision_a_id   UUID NOT NULL REFERENCES decisions(id) ON DELETE CASCADE,
+    decision_b_id   UUID NOT NULL REFERENCES decisions(id) ON DELETE CASCADE,
+    conflict_type   VARCHAR(50) NOT NULL,   -- 'direct', 'indirect', 'potential'
+    explanation     TEXT,
+    severity        VARCHAR(10) NOT NULL,   -- 'low', 'medium', 'high'
+    detected_at     TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT uq_conflict_pair UNIQUE (decision_a_id, decision_b_id),
+    CONSTRAINT no_self_conflict CHECK (decision_a_id <> decision_b_id)
+);
+```
+
+**`conflict_type`** — three levels of certainty:
+
+| Type | Meaning |
+|---|---|
+| `direct` | Mutually exclusive — implementing both is impossible or clearly wrong |
+| `indirect` | Both can coexist but create architectural tension or confusion |
+| `potential` | Uncertain; LLM flagged for human review |
+
+**`severity`** — `high` (blocks the team / production risk), `medium` (technical debt), `low` (minor overlap).
+
+---
+
+### How `check_conflicts.py` works — two-stage pipeline
+
+#### Stage 1: Cosine pre-filter (MiniLM embeddings)
+
+With 43 active decisions there are 903 possible pairs. Sending all pairs to the LLM would consume ~90k tokens and take ~5 minutes. Instead, the same MiniLM model from Change 1 is reused to embed all decision titles and filter to pairs with cosine similarity ≥ 0.25 — meaning they operate in a related topic area.
+
+```python
+candidate_pairs = [
+    (a, b) for a, b in itertools.combinations(decisions, 2)
+    if cosine_sim(a.title, b.title) >= args.min_sim
+]
+# 903 pairs → 87 candidates (saves ~816 LLM calls)
+```
+
+#### Stage 2: LLM conflict judgement (Groq / Llama 70B)
+
+Each candidate pair is sent to the LLM with title, description, rationale, category, and tags for both decisions. The model is asked to return structured JSON only:
+
+```python
+CONFLICT_PROMPT = """
+Decision A: {title_a} | {desc_a} | {rationale_a} | tags: {tags_a}
+Decision B: {title_b} | {desc_b} | {rationale_b} | tags: {tags_b}
+
+Do these decisions conflict? Reply ONLY with JSON:
+{
+  "conflicts": true | false,
+  "conflict_type": "direct" | "indirect" | "potential",
+  "explanation": "...",
+  "severity": "low" | "medium" | "high"
+}
+"""
+```
+
+`temperature=0.0` is used so judgements are deterministic — running the check twice on the same pair gives the same result.
+
+---
+
+### Conflicts detected on first run (our dataset)
+
+```
+══════════════════════════════════════════════════════════════
+Decision Conflict Detector
+══════════════════════════════════════════════════════════════
+
+  ── HIGH ──
+  [!!]  'Use GitHub Actions instead of Jenkins'
+          ↔  'Use AWS for deployment'
+             type: direct
+             Decision A chooses GitHub Actions (CI/CD), while Decision B
+             chooses AWS for deployment — these overlap in responsibility
+             and can create duplicate pipeline definitions.
+
+  ── MEDIUM ──
+  [~ ]  'Simplify Employee API for This Sprint'
+          ↔  'Show all employees on manager dashboard'
+             type: indirect
+             Decision A reduces the API surface; Decision B requires a
+             richer API response. The manager dashboard may silently break
+             when the simplified API ships.
+
+  Total: 2  (high: 1, medium: 1, low: 0)
+  Pairs checked: 87 / 903
+```
+
+---
+
+### Engineering decisions in the implementation
+
+**Why cosine pre-filter before LLM**
+
+Sending all 903 pairs to the LLM would cost ~90k tokens on the free Groq tier — the entire daily budget in one run, with nothing left for extraction. The pre-filter is the right architectural choice: use the cheap local model to narrow the search space, reserve the expensive model for judgement.
+
+**Why `temperature=0.0`**
+
+Conflict detection is a classification task. Determinism matters — the same pair should always produce the same verdict so re-runs are idempotent and diffs between runs are meaningful.
+
+**Pair ordering is normalised**
+
+The unique constraint on `(decision_a_id, decision_b_id)` requires consistent ordering. Both IDs are sorted before any lookup or insert, so `(A, B)` and `(B, A)` always resolve to the same row.
+
+**Idempotent by default**
+
+Existing pairs are skipped unless `--force` is passed. Running the check nightly only processes new decisions added since the last run.
+
+**Markdown fence stripping**
+
+The LLM occasionally wraps JSON in ` ```json ``` ` fences. The parser strips fences before `json.loads()` so the pipeline never crashes on formatting variance.
+
+---
+
+### How to phrase this on stage
+
+**One-liner (15 seconds):**
+> "LIGHTHOUSE doesn't just store decisions — it reads them. We use a 70-billion-parameter language model to scan every pair of active decisions and flag contradictions. First run on our dataset caught a direct conflict between the CI/CD pipeline decision and the deployment platform decision — something no one had explicitly noticed."
+
+**If a technical judge asks about the 903-pair problem:**
+> "That's the combinatorial explosion. With 43 decisions you have 903 pairs. We don't send all of them to the LLM. We pre-filter using the same embedding model we use for deduplication — cosine similarity above 0.25 means the decisions are in a related topic area. That reduces 903 pairs to 87 candidates. The LLM only sees pairs worth judging."
+
+**If asked about false positives:**
+> "The LLM is conservative — we use temperature zero so it's deterministic, and the prompt asks it to flag `potential` when uncertain rather than forcing a binary. The `potential` type is the escape hatch: it surfaces to a human for review without being counted as a confirmed conflict. In our run it returned zero potentials, which on a 13-decision tech stack is reasonable."
+
+**The non-technical hook:**
+> "Imagine your senior architect left six months ago. They made 43 decisions. Some of those decisions were made in different sprints, by different people, solving different problems — and two of them directly contradict each other. Every new engineer who reads the docs gets contradictory guidance. LIGHTHOUSE catches that before a new hire acts on it."
+
+---
+
+---
+
 ## Upcoming Changes (this branch)
 
 | # | Change | Status |
 |---|---|---|
-| 4 | LLM conflict detection across active decisions | planned |
 | 5 | Provenance chain via `EntityReference` traversal | planned |
