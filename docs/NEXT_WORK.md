@@ -7,15 +7,16 @@
 
 ---
 
-## All Decision Intelligence Changes: COMPLETE
+## Everything Built: Status
 
-| # | Change | Status | Key files |
+| # | Work item | Status | Key files |
 |---|---|---|---|
 | 1 | Semantic deduplication (MiniLM embeddings) | **Done** | `extract_decisions.py` → `DecisionDeduplicator` |
 | 2 | Drift detection (`drift_risk`, `last_reinforced_at`) | **Done** | `check_drift.py`, `models.py` |
 | 3 | Groq LLM backend migration | **Done** | `extract_decisions.py`, `summarize_meetings.py` |
 | 4 | LLM conflict detection | **Done** | `check_conflicts.py`, `migrate_add_conflicts_table.sql` |
 | 5 | Provenance chain traversal | **Done** | `provenance.py` |
+| 6 | Chatbot wired to conflicts + provenance | **Done** | `chatbot/` — all 6 files updated |
 
 ---
 
@@ -38,57 +39,44 @@ Conflicts:
 
 ---
 
+## Chatbot — What the New Intents Handle
+
+Two new intents were added. Users can now ask:
+
+**Conflict queries** (intent: `conflict_query`):
+- "Are there any conflicting decisions?"
+- "Does SQLAlchemy conflict with anything?"
+- "Show me architectural conflicts"
+- "What decisions contradict each other?"
+
+**Provenance queries** (intent: `provenance_query`):
+- "Where did the JWT decision come from?"
+- "Trace the Tailwind CSS decision"
+- "Show me the history behind SQLAlchemy"
+- "What commits followed the JWT decision?"
+
+Both intents are detected before general keyword scoring. The retrieval is pure SQL — no LLM call needed for the data fetch, only for narration. If the Groq rate limit is hit, the raw structured data still reaches the user.
+
+---
+
 ## What's Left to Do
 
-The decision intelligence engine is complete. The remaining work is on **presentation and integration** — making the new capabilities accessible to judges and users.
+### Priority 1: Run `check_drift.py` — populate drift fields
 
----
-
-### Priority 1: Wire the chatbot to the new scripts
-
-The chatbot (`chatbot/`) does not yet know about conflicts or provenance. A judge asking "are there any conflicting decisions?" or "where did the JWT decision come from?" would get a blank response.
-
-**What to build:**
-
-1. **Conflict intent** — add to `chatbot/intent/` a handler that detects questions like:
-   - _"are there any conflicting decisions?"_
-   - _"does X conflict with anything?"_
-   - _"what decisions contradict each other?"_
-
-   On match, call `DecisionConflict.objects.all()` and narrate the results.
-
-2. **Provenance intent** — add a handler for:
-   - _"where did the decision to use X come from?"_
-   - _"show me the history of the Tailwind decision"_
-   - _"what commits followed the JWT decision?"_
-
-   On match, call `provenance.get_provenance_chain(decision)` and narrate the dict.
-
-**Files to modify:**
-- `chatbot/intent/` — add `conflict_intent.py`, `provenance_intent.py`
-- `chatbot/retriever/sql_retriever.py` — add `get_conflicts()` and `get_provenance()` methods
-- `chatbot/main.py` — register new intents
-
-**Effort:** ~2–3 hours. The data is all there; this is plumbing only.
-
----
-
-### Priority 2: Run `check_drift.py` to populate drift fields
-
-The `last_reinforced_at` and `drift_risk` fields are in the DB schema but have never been computed against the current 44 decisions. Run it once:
+The `last_reinforced_at` and `drift_risk` fields exist in the DB but have never been computed against the current 44 decisions. This is a one-command job:
 
 ```bash
 cd /Users/Masters/Projects/Onboarding_AI/database
 /Users/Masters/Projects/Onboarding_AI/venv/bin/python3.12 scripts/check_drift.py
 ```
 
-Then run `--report` to see which decisions are flagged high-risk. This is a strong demo moment — showing a decision with `drift_risk: high` and explaining why.
+Then run `--report` to see results. This produces a strong demo moment — showing decisions that are high-drift (technology not mentioned in any recent commit or ticket) versus low-drift (actively referenced). Ask the chatbot "what is the drift risk of the ECS Fargate decision?" after running it.
 
 ---
 
-### Priority 3: Merge `decision-intelligence` → `main`
+### Priority 2: Merge `decision-intelligence` → `main`
 
-All 5 changes are stable and pushed. When ready to present:
+All work is stable and pushed. When ready to present:
 
 ```bash
 git checkout main
@@ -103,19 +91,19 @@ git diff main..chatbot --stat
 
 ---
 
-### Priority 4 (optional): Demo script / one-command demo
+### Priority 3 (optional): One-command demo script
 
-For the presentation, a single script that runs the full pipeline end-to-end would be compelling:
+A single script that tells the full story end-to-end would be compelling on stage:
 
 ```bash
 python scripts/demo.py
 # 1. Shows 44 decisions in the timeline
-# 2. Runs check_drift   → shows 2 high-risk decisions
+# 2. Runs check_drift   → shows high/medium/low risk decisions
 # 3. Runs check_conflicts --report → shows 2 conflicts
-# 4. Runs provenance on the JWT decision → shows 17 commits
+# 4. Runs provenance on JWT → shows origin meeting + 17 commits
 ```
 
-This takes ~30 seconds and tells the full story without switching terminals.
+Each step maps to one of the 5 changes. 30 seconds, no terminal switching.
 
 ---
 
@@ -148,26 +136,41 @@ print('Conflicts:', DecisionConflict.objects.count())
 ```
 Expected: `Decisions: 44  Conflicts: 2`
 
-### 4. Useful one-liners
+### 4. Run the chatbot
 ```bash
-# Run drift check
+cd /Users/Masters/Projects/Onboarding_AI
+/Users/Masters/Projects/Onboarding_AI/venv/bin/python3.12 chatbot/main.py
+```
+
+Try these questions to demo the new intents:
+```
+Are there any conflicting decisions?
+Where did the JWT decision come from?
+Trace the Tailwind CSS decision
+Does SQLAlchemy conflict with anything?
+```
+
+### 5. Useful one-liners
+```bash
+# Run drift check (populates drift_risk fields)
+python3.12 scripts/check_drift.py
 python3.12 scripts/check_drift.py --report
 
 # Run conflict report
 python3.12 scripts/check_conflicts.py --report
 
-# Trace a decision's provenance
+# Trace a decision's provenance (CLI, no LLM needed)
 python3.12 scripts/provenance.py --decision "JWT"
+python3.12 scripts/provenance.py --decision "Tailwind"
+python3.12 scripts/provenance.py --all
 
-# Re-extract decisions (if DB was reset)
+# Re-extract decisions (if DB was reset) — wait for Groq limit to reset first
 python3.12 scripts/extract_decisions.py --meetings --confluence
-
-# Re-summarize meetings
 python3.12 scripts/summarize_meetings.py --all
 ```
 
-### 5. If the Render DB is suspended (>90 days inactive)
-Create a new Render PostgreSQL instance, update `database/.env` with the new credentials, then re-run the full ingest:
+### 6. If the Render DB is suspended (>90 days inactive)
+Create a new Render PostgreSQL instance, update `database/.env`, then re-run the full ingest:
 ```bash
 python3.12 scripts/ingest_all.py
 python3.12 scripts/summarize_meetings.py --all
@@ -187,10 +190,13 @@ python3.12 scripts/check_drift.py
 | `database/knowledge_base/models.py` | All ORM models — Decision, DecisionConflict, Meeting, EntityReference, etc. |
 | `database/scripts/extract_decisions.py` | Decision extraction pipeline (LLM + dedup + supersession) |
 | `database/scripts/summarize_meetings.py` | Meeting summarizer |
-| `database/scripts/check_drift.py` | Drift risk scoring |
+| `database/scripts/check_drift.py` | Drift risk scoring — **run this before demo** |
 | `database/scripts/check_conflicts.py` | LLM conflict detection |
-| `database/scripts/provenance.py` | Provenance chain traversal |
+| `database/scripts/provenance.py` | Provenance chain CLI |
 | `chatbot/main.py` | Chatbot entry point |
+| `chatbot/llm/bytez_llm.py` | Groq LLM wrapper (renamed BytezLLM for compatibility) |
+| `chatbot/intent/types.py` | All intent types incl. CONFLICT_QUERY, PROVENANCE_QUERY |
+| `chatbot/retriever/sql_retriever.py` | All retrieval methods incl. conflicts + provenance |
 | `docs/DECISION_INTELLIGENCE_CHANGES.md` | Full technical changelog — read before presenting |
 | `LIGHTHOUSE_Pitch_Guide.docx` | Pitch deck guide |
 
@@ -198,19 +204,19 @@ python3.12 scripts/check_drift.py
 
 ## Important Constraints
 
-- **Render DB free tier** — suspends after 90 days of inactivity. Keep it warm with periodic queries or upgrade if presenting to judges.
-- **Groq free tier** — 100k tokens/day, resets at midnight UTC. Full extraction uses ~95k. Run extraction the day before the presentation.
-- **sentence-transformers** — MiniLM model (~80MB) downloads on first use and caches locally. Run `provenance.py` or `check_conflicts.py` once before the demo to warm the cache.
-- **`managed = False` on all Django models** — tables are created by raw SQL migration files, not `python manage.py migrate`. Any new table needs a corresponding `.sql` file.
+- **Render DB free tier** — suspends after 90 days of inactivity. Keep it warm or upgrade before the presentation.
+- **Groq free tier** — 100k tokens/day, resets midnight UTC. The chatbot's conflict and provenance intents only use the LLM for narration — the retrieval itself is pure SQL and always works even when rate-limited.
+- **sentence-transformers** — MiniLM model (~80MB) downloads on first use. Run `check_conflicts.py` once before the demo to warm the cache.
+- **`managed = False` on all Django models** — tables are created by raw SQL migration files, not `python manage.py migrate`.
 
 ---
 
-## Scoring Estimate (post all changes)
+## Scoring Estimate
 
 | Dimension | Estimated score | What delivers it |
 |---|---|---|
-| Innovation | 9/10 | Conflict detection is genuinely novel; no onboarding tool does this |
-| Technical depth | 9/10 | Embeddings + LLM + relational graph traversal in one coherent pipeline |
-| Feasibility | 9/10 | Live DB, all scripts working, chatbot running |
-| Impact | 9/10 | Drift + conflicts + provenance together answer every "why" a new hire has |
-| Presentation | TBD | Use on-stage phrases in `DECISION_INTELLIGENCE_CHANGES.md` — one per change |
+| Innovation | 9/10 | Conflict detection is genuinely novel; chatbot answers "what contradicts what?" |
+| Technical depth | 9/10 | Embeddings + LLM judgement + relational graph traversal + conversational interface |
+| Feasibility | 9/10 | Live DB, all scripts working, chatbot answering new question types |
+| Impact | 9/10 | Drift + conflicts + provenance + chatbot together cover every question a new hire has |
+| Presentation | TBD | Use on-stage phrases from `DECISION_INTELLIGENCE_CHANGES.md` — one per change |
