@@ -211,6 +211,176 @@ python3.12 scripts/check_drift.py
 
 ---
 
+## Chatbot Architecture — Known Problems & Future Direction
+
+> Written after a systematic fact-check of the chatbot on 2026-05-06.
+> Do not fix individual symptoms. Read this section before touching the chatbot again.
+
+---
+
+### What the fact-check found
+
+A full review of chatbot responses against the live DB revealed failures on roughly 40% of queries tested. The failures were:
+
+| Query | What it returned | What it should return |
+|---|---|---|
+| "get me all commits by Marcus" | Sarah Chen's commits (3) | Marcus's commits (12) |
+| "get me all commits related to react" | Zero commits, tech-stack decisions | 10 Lisa Park React commits |
+| "new employee first steps" | Tech stack decisions | Confluence "New Employee First Steps" page by Lisa Park |
+| "whom should I reach out for react doubts" | Dave Rossi (DevOps) | Lisa Park (Frontend) |
+| "what are all key decisions about frontend" | One decision (Tailwind) | 5+ unique frontend decisions |
+| "give me more details" after JWT | Generic JWT explanation | JWT decision rationale from DB |
+| Sprint 2 contributors | 5 including Sarah Chen | 4 — Sarah has no Sprint 2 tickets or commits |
+
+---
+
+### Root cause
+
+**Every failure traces back to one thing: a rule-based intent classifier that controls what data gets retrieved.**
+
+The pipeline is rigid:
+
+```
+Query → keyword pattern matching → one intent → one retrieval method → LLM narrates
+```
+
+One wrong classification at step 2 means steps 3 and 4 have no way to recover. The LLM is narrating whatever the wrong retriever returned. It can't fix the data it never saw.
+
+**Why the classifier keeps failing:**
+
+It scores tokens, not meaning. "Get me all commits by Marcus" scores high for `timeline_query` because "all" is a timeline keyword. "New employee first steps" routes to `timeline_query` because it sounds like a progression. "What are all key decisions about frontend" hits the `_retrieve_list` path because "what are all" is a list pattern. These aren't edge cases — they're normal English phrasing that doesn't match the classifier's vocabulary.
+
+Every fix applied so far (adding regex patterns, special-case conditions, sprint who-patterns, follow-up inheritance) works around one gap while leaving the underlying fragility intact. The surface area for new failures does not shrink.
+
+**Why context bleed keeps happening:**
+
+The conversation history stores `current_topic` (last entity mentioned) and injects it into every subsequent query. After asking about Dave Rossi, React questions get Dave. After asking about Sprint 3, decision queries filter on '3'. The history system has no concept of topic change detection — it treats the last entity as always relevant.
+
+---
+
+### Root cause in one sentence
+
+> The system asks "what type of question is this?" using keyword rules, then retrieves data based on that type. It should ask "what does the user need?" using language understanding, then retrieve whatever answers that need.
+
+---
+
+### The fix options (discuss before implementing)
+
+#### Option 1 — LLM query parser (do this next, low effort)
+
+Replace the classifier with a single small Groq call (~150 tokens) before retrieval. The LLM parses the query into an explicit retrieval plan:
+
+```
+User: "get me all commits by Marcus"
+
+Parse call returns:
+{
+  "data_sources": ["commits"],
+  "filters": {"person": "Marcus Thompson"},
+  "intent": "person_commits"
+}
+
+→ Retriever queries GitCommit WHERE author_name icontains 'Marcus'
+→ Correct answer, no routing error possible
+```
+
+```
+User: "new employee first steps"
+
+Parse call returns:
+{
+  "data_sources": ["confluence"],
+  "filters": {"keywords": ["first steps", "onboarding"]},
+  "intent": "howto"
+}
+
+→ Returns Lisa Park's Confluence page directly
+```
+
+The intent classifier, the `ROLE_KEYWORDS` list, the `_is_person_query` regex patterns, the `_is_sprint_summary_query` patterns — all of them go away. The routing logic lives in the parse call.
+
+**On cost:** This adds ~150 tokens per query. The current system already wastes full generation calls (~1200 tokens) when the classifier is wrong. Correct routing on the first try is net cheaper at scale. The LLM parse call is a stepping stone — at production scale you replace it with a fine-tuned classifier (see below).
+
+#### Option 2 — Embedding-based retrieval, no classifier at all (right production move)
+
+Instead of classifying and routing, embed the query once and do cosine similarity search across all tables simultaneously:
+
+```
+Query → one embedding vector → pgvector search across decisions + commits + tickets + confluence + meetings
+     → return top-K most semantically relevant documents regardless of table
+     → LLM narrates
+```
+
+"Get me all commits by Marcus" and "New employee first steps" both become vector lookups. The classifier disappears entirely. This is the dominant production pattern at Notion, Perplexity, GitHub Copilot, and Cursor.
+
+Infrastructure: pgvector is a PostgreSQL extension — one `CREATE EXTENSION vector` on the existing Render DB. No new services. Pre-compute embeddings for all existing records at ingest time (one-time cost, ~$0.002 at OpenAI pricing). Query-time embedding: ~$0.00004 per query.
+
+**This eliminates the classifier and the context bleed problem simultaneously.** History becomes pure background context for the LLM, not entity state that overwrites the current query's meaning.
+
+#### Option 3 — Tool calling / agentic retrieval (best accuracy, one call)
+
+Give the LLM tool definitions for each data source and let it decide which to call:
+
+```
+Tools: get_commits(person, topic, date_range)
+       get_decisions(topic, category)
+       search_confluence(keywords)
+       get_sprint_summary(sprint_number)
+       get_person_work(name)
+       ...
+
+One LLM call → LLM decides which tools to invoke and with what parameters
+             → Tools execute (in parallel if needed)
+             → LLM synthesizes results
+```
+
+The routing logic lives inside the model weights. No classifier, no routing table, no context bleed. This is what LangChain agents, LlamaIndex query engines, and Anthropic's tool use pattern implement. Cost is one call slightly larger than the current generation call — often cheaper than two calls.
+
+---
+
+### What big tech companies do at scale
+
+```
+Stage                     Architecture                              Cost per query
+─────────────────────────────────────────────────────────────────────────────────
+Demo / prototype          Rule-based classifier                     $0 (fragile)
+Early product             LLM parse call                            +10-15% (robust)
+Growth (1M+ queries/day)  Fine-tuned BERT classifier                $0 after training
+                          + embedding retrieval (pgvector)          ~$0.00004/query
+Scale                     Two-model: small for routing,             ~$0.0001/query
+                          large for generation only
+Mature product            Tool calling + hybrid retrieval           ~$0.0002/query
+                          + semantic cache (Redis/GPTCache)         -40% via cache hit
+```
+
+**Fine-tuned small classifier** — Azure AI Search, Elastic Enterprise Search, Salesforce Einstein all do this. Train a DistilBERT on labeled examples of your own queries. After training the model is <100MB, runs locally in <5ms, zero marginal cost per query. The training corpus is the fact-check data we already have (the broken queries + their correct intents are free labeled training examples).
+
+**Semantic caching** — GPTCache, Redis semantic cache. Most enterprise users ask the same questions repeatedly. Cache parse results + generated answers by query embedding similarity. Reduces LLM calls by 40-60% on typical workloads.
+
+**The key argument for judges:** The rule-based classifier is what doesn't scale — not the LLM call. Rules break silently and require engineering time to maintain every time a new query pattern appears. Both the LLM parse approach and the embedding approach scale horizontally with infrastructure, not with engineering headcount.
+
+---
+
+### What to say on stage when asked about scale
+
+> "For the demo we use a structured LLM parse call that adds about 150 tokens per query — roughly a 10% cost increase but it eliminates the classification errors. At scale you replace that parse call with a fine-tuned BERT classifier that has zero marginal cost after training, or you switch to embedding-based retrieval over pgvector, which is one PostgreSQL extension on infrastructure we're already paying for. The routing logic moves from code into the model, and the cost per query actually drops. This is the same progression Notion, Perplexity, and GitHub Copilot followed."
+
+---
+
+### Remaining known issues (do not patch individually — fix the architecture)
+
+| Issue | Correct fix |
+|---|---|
+| "commits by X" → timeline_query | LLM parse / tool calling |
+| "first steps" → timeline_query | LLM parse / embedding retrieval |
+| Context bleed (Dave → React) | Embedding retrieval (no entity state) |
+| "key decisions about frontend" → general_query | LLM parse extracts topic + data_source |
+| "who should I contact for X" → wrong person | LLM parse + `find_by_role_keywords()` already correct, just needs right routing |
+| Sprint 2 contributors includes Sarah Chen | Sprint contributor logic uses commit date range; meetings have null dates so Sprint2 meetings excluded from count |
+| Tailwind provenance missing Lisa Park's commit | Decision tags are `['frontend', 'framework']` not `['tailwind']` — tag is too broad for keyword scan |
+
+---
+
 ## Scoring Estimate
 
 | Dimension | Estimated score | What delivers it |
