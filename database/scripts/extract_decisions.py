@@ -63,54 +63,38 @@ except ImportError:
     print("ERROR: Decision model not found. Add it to knowledge_base/models.py first.")
     sys.exit(1)
 
-# Bytez imports
-from bytez import Bytez
-
 # Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
 
+from openai import OpenAI
+
 
 # ============================================
-# BYTEZ LLM BACKEND (DSPy-style)
+# GROQ LLM BACKEND (OpenAI-compatible)
 # ============================================
 
-BYTEZ_API_KEY = os.getenv('BYTEZ_API_KEY', '19408716817b70780ddaaea1a7e32eb6')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+GROQ_MODEL   = "llama-3.3-70b-versatile"
 
 
 class BytezLM:
-    """Bytez Language Model wrapper - DSPy-style interface."""
-    
-    def __init__(self, model_name: str = "openai/gpt-4o"):
+    """Groq backend, drop-in replacement for the old Bytez wrapper."""
+
+    def __init__(self, model_name: str = GROQ_MODEL):
         self.model_name = model_name
-        self.sdk = Bytez(BYTEZ_API_KEY)
-        self.model = self.sdk.model(model_name)
-    
+        self.client = OpenAI(
+            api_key=GROQ_API_KEY,
+            base_url="https://api.groq.com/openai/v1",
+        )
+
     def generate(self, prompt: str) -> str:
-        """Generate a response from the LLM."""
-        results = self.model.run([{"role": "user", "content": prompt}])
-        
-        if results.error:
-            raise Exception(f"Bytez API error: {results.error}")
-        
-        return self._extract_text(results.output)
-    
-    def _extract_text(self, output: Any) -> str:
-        """Extract text from response."""
-        if isinstance(output, str):
-            return output
-        elif isinstance(output, dict):
-            for key in ['choices', 'content', 'text', 'message']:
-                if key in output:
-                    val = output[key]
-                    if key == 'choices':
-                        return val[0]['message']['content']
-                    elif isinstance(val, dict) and 'content' in val:
-                        return val['content']
-                    return str(val)
-        elif isinstance(output, list) and output:
-            return self._extract_text(output[0])
-        return str(output)
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+        )
+        return response.choices[0].message.content
 
 
 # ============================================
@@ -582,11 +566,20 @@ def save_decision(decision_data: dict, deduplicator: DecisionDeduplicator) -> Op
         # Parse decision_date
         decision_date = decision_data.get('decision_date')
         if isinstance(decision_date, str):
-            decision_date = datetime.strptime(decision_date, '%Y-%m-%d').date()
-        
+            try:
+                decision_date = datetime.strptime(decision_date, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                decision_date = None
+
         if not decision_date:
-            print(f"    Skipping (no date): {decision_data.get('title', '?')[:30]}")
-            return None
+            # Fall back to source title date or today
+            source_title = decision_data.get('source_title', '')
+            import re as _re
+            m = _re.search(r'(\d{4}-\d{2}-\d{2})', source_title)
+            if m:
+                decision_date = datetime.strptime(m.group(1), '%Y-%m-%d').date()
+            else:
+                decision_date = datetime.now().date()
         
         # Parse source_id
         source_id = decision_data.get('source_id')
@@ -697,7 +690,7 @@ def main():
     parser.add_argument('--meetings', action='store_true', help='Process meetings only')
     parser.add_argument('--confluence', action='store_true', help='Process Confluence only')
     parser.add_argument('--jira', action='store_true', help='Process Jira only')
-    parser.add_argument('--model', type=str, default='openai/gpt-4o', help='Model to use')
+    parser.add_argument('--model', type=str, default='llama-3.3-70b-versatile', help='Model to use')
     parser.add_argument('--dry-run', action='store_true', help='Preview without saving')
     parser.add_argument('--clear', action='store_true', help='Clear existing decisions first')
     parser.add_argument('--skip-duplicates', action='store_true', help='Skip duplicate decisions')
@@ -712,7 +705,7 @@ def main():
     print("DSPy-Style Decision Extractor with Bytez Backend")
     print("=" * 60)
     print(f"\nSettings:")
-    print(f"  API Key: {BYTEZ_API_KEY[:10]}...")
+    print(f"  API Key: {GROQ_API_KEY[:10]}...")
     print(f"  Model: {args.model}")
     print(f"  Similarity Threshold: {args.similarity}")
     print(f"  Skip Duplicates: {args.skip_duplicates}")

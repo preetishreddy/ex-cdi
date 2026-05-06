@@ -32,84 +32,41 @@ django.setup()
 from django.db import transaction
 from knowledge_base.models import Meeting
 
-# Bytez imports
-from bytez import Bytez
-
 # Load environment variables
 from dotenv import load_dotenv
 load_dotenv()
 
+from openai import OpenAI
+
 
 # ============================================
-# BYTEZ LLM BACKEND
+# GROQ LLM BACKEND (OpenAI-compatible)
 # ============================================
 
-BYTEZ_API_KEY = os.getenv('BYTEZ_API_KEY', '19408716817b70780ddaaea1a7e32eb6')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+GROQ_MODEL   = "llama-3.3-70b-versatile"
 
 
 class BytezLM:
-    """
-    Bytez Language Model wrapper - DSPy-style LM interface.
-    This allows Bytez to be used as the backend for DSPy-style modules.
-    """
-    
-    def __init__(self, model_name: str = "openai/gpt-4o", api_key: str = None):
+    """Groq backend, drop-in replacement for the old Bytez wrapper."""
+
+    def __init__(self, model_name: str = GROQ_MODEL, api_key: str = None):
         self.model_name = model_name
-        self.api_key = api_key or BYTEZ_API_KEY
-        self.sdk = Bytez(self.api_key)
-        self.model = self.sdk.model(model_name)
-        self.history = []
-    
+        self.client = OpenAI(
+            api_key=api_key or GROQ_API_KEY,
+            base_url="https://api.groq.com/openai/v1",
+        )
+
     def __call__(self, prompt: str, **kwargs) -> str:
-        """Call the LLM with a prompt."""
-        return self.generate(prompt, **kwargs)
-    
+        return self.generate(prompt)
+
     def generate(self, prompt: str, **kwargs) -> str:
-        """Generate a response from the LLM."""
-        messages = [{"role": "user", "content": prompt}]
-        
-        results = self.model.run(messages)
-        
-        if results.error:
-            raise Exception(f"Bytez API error: {results.error}")
-        
-        response = self._extract_text(results.output)
-        
-        # Track history for debugging
-        self.history.append({
-            "prompt": prompt[:200] + "...",
-            "response": response[:200] + "..."
-        })
-        
-        return response
-    
-    def _extract_text(self, output: Any) -> str:
-        """Extract text from various response formats."""
-        if isinstance(output, str):
-            return output
-        elif isinstance(output, dict):
-            if 'choices' in output:
-                return output['choices'][0]['message']['content']
-            elif 'content' in output:
-                return output['content']
-            elif 'text' in output:
-                return output['text']
-            elif 'message' in output:
-                msg = output['message']
-                if isinstance(msg, dict) and 'content' in msg:
-                    return msg['content']
-                return str(msg)
-        elif isinstance(output, list) and len(output) > 0:
-            first = output[0]
-            if isinstance(first, dict):
-                for key in ['generated_text', 'content', 'text']:
-                    if key in first:
-                        return first[key]
-                if 'message' in first:
-                    msg = first['message']
-                    if isinstance(msg, dict) and 'content' in msg:
-                        return msg['content']
-        return str(output)
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+        )
+        return response.choices[0].message.content
 
 
 # ============================================
@@ -585,7 +542,7 @@ def main():
     parser.add_argument('--meeting-id', type=str, help='Process specific meeting')
     parser.add_argument('--all', action='store_true', help='Process all without summaries')
     parser.add_argument('--force', action='store_true', help='Reprocess all')
-    parser.add_argument('--model', type=str, default='openai/gpt-4o', help='Model name')
+    parser.add_argument('--model', type=str, default='llama-3.3-70b-versatile', help='Model name')
     parser.add_argument('--dry-run', action='store_true', help='Preview only')
     
     args = parser.parse_args()
@@ -595,7 +552,7 @@ def main():
     print("DSPy-Style Meeting Summarizer with Bytez Backend")
     print("="*60)
     print(f"\nInitializing Bytez LM...")
-    print(f"  API Key: {BYTEZ_API_KEY[:10]}...")
+    print(f"  API Key: {GROQ_API_KEY[:10]}...")
     print(f"  Model: {args.model}")
     
     # Initialize DSPy-style components

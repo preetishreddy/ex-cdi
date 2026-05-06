@@ -76,6 +76,7 @@ DATABASES = {
         'PORT': os.environ.get('DB_PORT', '5432'),
         'OPTIONS': {
             'connect_timeout': 10,
+            'sslmode': 'require',
         },
     }
 }
