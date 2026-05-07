@@ -20,6 +20,12 @@ staticfiles/
 .env
 .env.local
 .env.*.local
+database/.env
+
+# Data files
+*.json
+*.csv
+*.vtt
 
 # IDE
 .vscode/

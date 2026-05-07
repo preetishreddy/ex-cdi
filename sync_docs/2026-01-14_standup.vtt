@@ -1,0 +1,58 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:05.000
+James O'Brien: Good morning everyone. Let's do our standup. Dave, you want to start?
+
+00:00:05.500 --> 00:00:28.000
+Dave Rossi: Yeah. So yesterday was a rough one. Stripe had an outage starting around 8 AM and our retry handler completely fell over. The problem was the fixed three-second retry interval. When Stripe went down, every single failed payment started retrying every three seconds. When Stripe came back up, we basically DDoS'd ourselves with all the queued retries hitting at once.
+
+00:00:28.000 --> 00:00:45.500
+Dave Rossi: I deployed a hotfix by noon. Replaced the fixed delay with exponential backoff and jitter. The formula is base delay times two to the power of the attempt count, plus a random jitter. Also added a circuit breaker that trips after five consecutive failures. Once the circuit breaker is open, we stop retrying for thirty seconds before half-opening.
+
+00:00:45.500 --> 00:00:58.000
+Dave Rossi: Today I'm going to clean up the code a bit and write proper tests. I also filed PAY-219 to audit all the other retry patterns in the codebase. I know the webhook receiver and the invoice generator both have the same fixed-interval problem.
+
+00:00:58.500 --> 00:01:08.000
+James O'Brien: Good work getting that fixed quickly, Dave. Can you lead the incident debrief on Wednesday? I want the whole team there so we can learn from this.
+
+00:01:08.000 --> 00:01:11.000
+Dave Rossi: Sure, I'll put together a timeline and root cause analysis.
+
+00:01:11.500 --> 00:01:14.500
+James O'Brien: Lisa, you're next.
+
+00:01:14.500 --> 00:01:30.000
+Lisa Park: So I was the one who first spotted the alerts yesterday morning from Datadog. I flagged it to Dave and helped monitor while he was working on the fix. Today Dave assigned me PAY-206, which is adding a dead letter queue for failed webhook events. Right now when a webhook processing fails, the event is just silently dropped. We need a way to capture and reprocess those.
+
+00:01:30.000 --> 00:01:40.500
+Lisa Park: I'm going to dig into the webhook receiver code today. I haven't worked in that part of the codebase before, so I might have some questions for Dave as I go. My plan is to use SQS for the dead letter queue with a retry Lambda.
+
+00:01:40.500 --> 00:01:46.000
+Dave Rossi: Happy to pair on it if you get stuck. The webhook verification flow is a bit tricky.
+
+00:01:46.500 --> 00:01:49.000
+James O'Brien: Marcus?
+
+00:01:49.000 --> 00:02:02.000
+Marcus Thompson: I'm heads-down on the GitHub Actions migration. Had a good sync with Dave yesterday after the architecture review. I understand the billing service's database migration steps now. The production workflow should be ready for testing by tomorrow.
+
+00:02:02.000 --> 00:02:09.500
+Marcus Thompson: I'm also keeping an eye on the rate limiting prototypes. I'll have both token bucket and sliding window implementations ready by Thursday as Sarah asked.
+
+00:02:10.000 --> 00:02:13.000
+James O'Brien: Priya?
+
+00:02:13.000 --> 00:02:25.000
+Priya Sharma: I'm finishing up the TransactionList component today. Pagination and filtering are done. I'm adding the sorting logic now. After that, I'm going to build the StatusBadge and DataTable shared components that the rest of the dashboard will use.
+
+00:02:25.500 --> 00:02:32.500
+Priya Sharma: No blockers. Should have both components done by end of day tomorrow.
+
+00:02:33.000 --> 00:02:36.000
+James O'Brien: Sarah, anything from you?
+
+00:02:36.000 --> 00:02:50.000
+Sarah Chen: Just a reminder that the CI/CD migration is the top priority this sprint. I want Jenkins fully deprecated by end of sprint. Also, I've started drafting the architecture decision record for the rate limiting approach — I'll finalize it after Thursday's review once we've made the final call.
+
+00:02:50.500 --> 00:02:58.000
+James O'Brien: Great. Thanks everyone. Dave, don't forget the incident debrief is tomorrow at 2 PM. Everyone please attend.
