@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LightHouse — Project Overview</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="static/css/project_dashboard.css">
+<link rel="stylesheet" href="static/css/integrations.css">
+<link rel="stylesheet" href="static/css/solution_chat.css">
+</head>
+<body>
+<div class="page-bg"></div>
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-top-row">
+    <button class="sidebar-hamburger" id="sidebarToggle" title="Toggle sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <div class="sidebar-logo"><div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M10.5 5a1.5 1.5 0 0 1 3 0"/><path d="M10 5h4v3h-4z"/><path d="M10 8L8 19h8l-2-11z"/><line x1="10" y1="11" x2="14" y2="13"/><line x1="9.3" y1="15" x2="14.7" y2="17"/><path d="M6 19h12v2H6z"/><line x1="14" y1="5.5" x2="20" y2="2.5"/><line x1="14.5" y1="7" x2="21" y2="5"/><path d="M21 1.5v2M20 2.5h2"/></svg></div><div class="logo-text">Light<span>House</span></div></div>
+  </div>
+  <div class="sidebar-section">Projects</div>
+  <div class="project-rail" id="projectRail">
+    <div class="project-rail-loading"><div class="spinner-sm"></div></div>
+  </div>
+  <div class="project-flyout" id="projectFlyout">
+    <div class="flyout-arrow"></div>
+    <div class="flyout-header">
+      <span class="flyout-title" id="flyoutTitle"></span>
+      <span class="flyout-status" id="flyoutStatus"></span>
+    </div>
+    <div class="flyout-body" id="flyoutBody"></div>
+    <a class="flyout-link" id="flyoutLink" href="#">Open Project →</a>
+  </div>
+  <div class="sidebar-bottom"><div class="user-chip"><div class="avatar-sm" id="userAvatar">—</div><div><div class="user-name" id="sidebarUserName">Loading...</div><div class="user-role">Employee</div></div><a href="login.html" class="logout-btn" onclick="sessionStorage.clear()"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></a></div></div>
+</nav>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div class="main">
+  <div class="topbar"><div><div class="page-title">Project Overview</div><div class="page-sub" id="topbarSub">Loading ecosystem...</div></div><div class="topbar-stats" id="topbarStats"></div></div>
+  <div class="content" id="overviewContent">
+    <div class="project-goal-banner" id="projectGoalBanner"></div>
+    <div class="project-summary-banner" id="projectSummaryBanner"></div>
+    <div class="timeline-wrap" id="timelineWrap"><div class="timeline" id="timeline"></div></div>
+    <div class="content-row">
+      <div class="detail-panel" id="detailPanel"></div>
+    </div>
+  </div>
+  <div class="content dm-content" id="decisionsContent" style="display:none">
+    <div class="dm-card">
+      <div class="dm-card-header">
+        <div class="dm-header-icon">
+          <svg viewBox="0 0 24 24" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="dm-header-text">
+          <h2 class="dm-page-title">Decision Timeline Map</h2>
+          <p class="dm-page-subtitle">Explore all decisions across categories and sprints</p>
+        </div>
+      </div>
+      <div class="dm-card-body" id="decisionMapPageContainer"></div>
+    </div>
+  </div>
+  <div class="content ig-content" id="integrationsContent" style="display:none">
+    <div class="ig-top-bar">
+      <button class="ig-new-btn" onclick="openNewIntegrationModal()">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Integration
+      </button>
+    </div>
+    <div class="ig-cards" id="igCards">
+      <div class="ig-card" data-source="jira">
+        <div class="ig-card-header">
+          <div class="ig-card-icon jira"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div><div class="ig-card-title">Jira</div><div class="ig-card-subtitle">Project Management</div></div>
+          <div class="ig-card-status connected"><span class="ig-status-dot"></span>Connected</div>
+        </div>
+        <div class="ig-card-stats">
+          <div class="ig-stat"><span class="ig-stat-num" id="jiraTotalTickets">—</span><span class="ig-stat-label">Tickets</span></div>
+          <div class="ig-stat"><span class="ig-stat-num" id="jiraCompleted">—</span><span class="ig-stat-label">Completed</span></div>
+          <div class="ig-stat"><span class="ig-stat-num" id="jiraInProgress">—</span><span class="ig-stat-label">In Progress</span></div>
+          <div class="ig-stat"><span class="ig-stat-num" id="jiraBlockers">—</span><span class="ig-stat-label">Blockers</span></div>
+        </div>
+        <div class="ig-card-actions">
+          <a class="ig-action-btn primary" id="jiraDashboardLink" href="#" target="_blank">Open Jira Dashboard</a>
+          <button class="ig-action-btn" onclick="showIgSection('jira')">View Tickets</button>
+        </div>
+      </div>
+      <div class="ig-card" data-source="confluence">
+        <div class="ig-card-header">
+          <div class="ig-card-icon confluence"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
+          <div><div class="ig-card-title">Confluence</div><div class="ig-card-subtitle">Documentation</div></div>
+          <div class="ig-card-status connected"><span class="ig-status-dot"></span>Connected</div>
+        </div>
+        <div class="ig-card-stats">
+          <div class="ig-stat"><span class="ig-stat-num" id="confTotalPages">—</span><span class="ig-stat-label">Pages</span></div>
+          <div class="ig-stat"><span class="ig-stat-num" id="confSpaces">—</span><span class="ig-stat-label">Spaces</span></div>
+          <div class="ig-stat"><span class="ig-stat-num" id="confAuthors">—</span><span class="ig-stat-label">Authors</span></div>
+          <div class="ig-stat"><span class="ig-stat-num" id="confLatest">—</span><span class="ig-stat-label">Last Updated</span></div>
+        </div>
+        <div class="ig-card-actions">
+          <a class="ig-action-btn primary" id="confluenceLink" href="#" target="_blank">Open Confluence</a>
+          <button class="ig-action-btn" onclick="showIgSection('confluence')">View Pages</button>
+        </div>
+      </div>
+      <div class="ig-card" data-source="github">
+        <div class="ig-card-header">
+          <div class="ig-card-icon github"><svg viewBox="0 0 24 24"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg></div>
+          <div><div class="ig-card-title">GitHub</div><div class="ig-card-subtitle">Version Control</div></div>
+          <div class="ig-card-status connected"><span class="ig-status-dot"></span>Connected</div>
+        </div>
+        <div class="ig-card-stats">
+          <div class="ig-stat"><span class="ig-stat-num" id="ghTotalCommits">—</span><span class="ig-stat-label">Commits</span></div>
+          <div class="ig-stat"><span class="ig-stat-num" id="ghContributors">—</span><span class="ig-stat-label">Contributors</span></div>
+          <div class="ig-stat"><span class="ig-stat-num" id="ghFilesChanged">—</span><span class="ig-stat-label">Files Changed</span></div>
+          <div class="ig-stat"><span class="ig-stat-num" id="ghLatest">—</span><span class="ig-stat-label">Last Commit</span></div>
+        </div>
+        <div class="ig-card-actions">
+          <a class="ig-action-btn primary" id="githubRepoLink" href="#" target="_blank">Open Repository</a>
+          <button class="ig-action-btn" onclick="showIgSection('github')">View Commits</button>
+        </div>
+      </div>
+    </div>
+    <div class="ig-detail-section" id="igDetailSection">
+      <div class="ig-detail-header">
+        <h3 class="ig-detail-title" id="igDetailTitle">Jira Tickets</h3>
+        <div class="ig-detail-controls">
+          <input class="ig-search" id="igSearch" type="text" placeholder="Search...">
+          <select class="ig-filter" id="igFilter"><option value="all">All</option></select>
+          <button class="ig-close-btn" onclick="hideIgSection()" title="Close">&times;</button>
+        </div>
+      </div>
+      <div class="ig-detail-body" id="igDetailBody"></div>
+    </div>
+  </div>
+</div>
+<!-- New Integration Modal -->
+<div class="ni-modal-overlay" id="niModalOverlay" onclick="closeNewIntegrationModal()">
+  <div class="ni-modal" onclick="event.stopPropagation()">
+    <div class="ni-modal-header">
+      <div>
+        <h2 class="ni-modal-title">Add New Integration</h2>
+        <p class="ni-modal-subtitle">Connect a service to your project ecosystem</p>
+      </div>
+      <button class="ni-close" onclick="closeNewIntegrationModal()">&times;</button>
+    </div>
+    <div class="ni-search-wrap">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="ni-search" id="niSearch" type="text" placeholder="Search integrations..." oninput="filterIntegrations(this.value)">
+    </div>
+    <div class="ni-grid" id="niGrid">
+      <div class="ni-item" data-name="Zoom" onclick="startIntegrationFlow('zoom')">
+        <div class="ni-icon zoom"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm12 3l6-3v12l-6-3V7z"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Zoom</span><span class="ni-desc">Video Conferencing</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+      <div class="ni-item" data-name="Google Meet" onclick="startIntegrationFlow('google-meet')">
+        <div class="ni-icon gmeet"><svg viewBox="0 0 24 24" fill="none"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h9a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 13 20H4a1.5 1.5 0 0 1-1.5-1.5v-13z" fill="#00832d"/><path d="M14.5 8.2l4.8-3.5c.6-.4 1.2-.1 1.2.6v13.4c0 .7-.6 1-1.2.6l-4.8-3.5V8.2z" fill="#00ac47"/><path d="M14.5 8.2V12L2.5 5.5V5.5A1.5 1.5 0 0 1 4 4h9a1.5 1.5 0 0 1 1.5 1.5V8.2z" fill="#00832d"/><path d="M2.5 5.5L14.5 12v3.8L2.5 18.5v-13z" fill="#0066da" opacity=".3"/><path d="M14.5 12l6 4.3V18.7c0 .7-.6 1-1.2.6l-4.8-3.5V12z" fill="#00832d" opacity=".4"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Google Meet</span><span class="ni-desc">Video Meetings</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+      <div class="ni-item" data-name="Slack" onclick="startIntegrationFlow('slack')">
+        <div class="ni-icon slack"><svg viewBox="0 0 24 24" fill="none"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52z" fill="#e01e5a"/><path d="M6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z" fill="#e01e5a"/><path d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834z" fill="#36c5f0"/><path d="M8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z" fill="#36c5f0"/><path d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834z" fill="#2eb67d"/><path d="M17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312z" fill="#2eb67d"/><path d="M15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52z" fill="#ecb22e"/><path d="M15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#ecb22e"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Slack</span><span class="ni-desc">Team Messaging</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+      <div class="ni-item" data-name="Microsoft Teams" onclick="startIntegrationFlow('teams')">
+        <div class="ni-icon teams"><svg viewBox="0 0 24 24" fill="none"><path d="M16.5 3a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" fill="#5059c9"/><path d="M18 9h3.5a1.5 1.5 0 0 1 1.5 1.5V16a3 3 0 0 1-3 3h-.5V10.5A1.5 1.5 0 0 0 18 9z" fill="#5059c9"/><path d="M12 3.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7z" fill="#7b83eb"/><path d="M16.5 10.5V18a4.5 4.5 0 0 1-9 0v-7.5A1.5 1.5 0 0 1 9 9h6a1.5 1.5 0 0 1 1.5 1.5z" fill="#7b83eb"/><path d="M2 11h8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" fill="#4b53bc"/><path d="M8 14H4v1.5h4V14zm0-2H4v1h4v-1z" fill="#fff"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Microsoft Teams</span><span class="ni-desc">Collaboration Hub</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+      <div class="ni-item" data-name="Outlook Calendar" onclick="startIntegrationFlow('outlook')">
+        <div class="ni-icon outlook"><svg viewBox="0 0 24 24" fill="none"><path d="M22 7v10a2 2 0 0 1-2 2H10V5h10a2 2 0 0 1 2 2z" fill="#1490df"/><path d="M22 7l-6 5-6-5" stroke="#fff" stroke-width=".5" fill="none"/><path d="M10 5v14H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6z" fill="#1490df"/><rect x="1" y="7" width="10" height="12" rx="1.5" fill="#0364b8"/><ellipse cx="6" cy="13" rx="2.8" ry="3.2" fill="none" stroke="#fff" stroke-width="1.2"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Outlook Calendar</span><span class="ni-desc">Scheduling & Events</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+      <div class="ni-item" data-name="Trello" onclick="startIntegrationFlow('trello')">
+        <div class="ni-icon trello"><svg viewBox="0 0 24 24" fill="none"><rect x="1" y="1" width="22" height="22" rx="3" fill="#0079bf"/><rect x="4" y="4" width="6.5" height="13" rx="1.3" fill="#fff"/><rect x="13.5" y="4" width="6.5" height="9" rx="1.3" fill="#fff"/></svg></div>
+        <div class="ni-info"><span class="ni-name">Trello</span><span class="ni-desc">Kanban Boards</span></div>
+        <span class="ni-badge">Connect</span>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Sign-In Flow Modal -->
+<div class="ni-signin-overlay" id="niSigninOverlay" onclick="closeSigninModal()">
+  <div class="ni-signin-modal" onclick="event.stopPropagation()">
+    <button class="ni-close" onclick="closeSigninModal()">&times;</button>
+    <div class="ni-signin-icon" id="niSigninIcon"></div>
+    <h2 class="ni-signin-title" id="niSigninTitle">Connect Zoom</h2>
+    <p class="ni-signin-desc">Sign in with your account to connect this integration to your ecosystem.</p>
+    <form class="ni-signin-form" onsubmit="submitIntegration(event)">
+      <div class="ni-form-group">
+        <label>Email Address</label>
+        <input type="email" id="niSigninEmail" placeholder="you@company.com" required>
+      </div>
+      <div class="ni-form-group">
+        <label>Password / API Key</label>
+        <input type="password" id="niSigninPassword" placeholder="Enter credentials" required>
+      </div>
+      <button type="submit" class="ni-signin-btn" id="niSigninBtn">Sign In & Connect</button>
+    </form>
+  </div>
+</div>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-content">
+    <div class="loading-orbit-wrap">
+      <div class="loading-logo"><svg viewBox="0 0 24 24"><path d="M10.5 5a1.5 1.5 0 0 1 3 0"/><path d="M10 5h4v3h-4z"/><path d="M10 8L8 19h8l-2-11z"/><line x1="10" y1="11" x2="14" y2="13"/><line x1="9.3" y1="15" x2="14.7" y2="17"/><path d="M6 19h12v2H6z"/><line x1="14" y1="5.5" x2="20" y2="2.5"/><line x1="14.5" y1="7" x2="21" y2="5"/><path d="M21 1.5v2M20 2.5h2"/></svg></div>
+      <div class="orbit-ring"></div>
+      <div class="orbit-icon orbit-icon-1" title="Jira">
+        <svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="ojg1" x1="98%" y1="0%" x2="58%" y2="42%"><stop offset="18%" stop-color="#0052cc"/><stop offset="100%" stop-color="#2684ff"/></linearGradient><linearGradient id="ojg2" x1="2%" y1="100%" x2="42%" y2="58%"><stop offset="18%" stop-color="#0052cc"/><stop offset="100%" stop-color="#2684ff"/></linearGradient></defs><path d="M22.16 11.1L13.07 2 12 .94 4.52 8.42.84 12.1a.59.59 0 0 0 0 .84L7.66 19.6 12 23.94l7.48-7.48.38-.38 2.3-2.3a.57.57 0 0 0 0-.82zM12 15.4L8.6 12 12 8.6 15.4 12 12 15.4z" fill="#2684ff"/><path d="M12 8.6a5.27 5.27 0 0 1-.04-7.44L4.5 8.6l3.56 3.56L12 8.6z" fill="url(#ojg1)"/><path d="M15.42 11.97L12 15.4a5.27 5.27 0 0 1 0 7.48l7.5-7.48-4.08-3.43z" fill="url(#ojg2)"/></svg>
+      </div>
+      <div class="orbit-icon orbit-icon-2" title="GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      </div>
+      <div class="orbit-icon orbit-icon-3" title="Teams">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M16.5 3a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" fill="#5059c9"/><path d="M18 9h3.5a1.5 1.5 0 0 1 1.5 1.5V16a3 3 0 0 1-3 3h-.5V10.5A1.5 1.5 0 0 0 18 9z" fill="#5059c9"/><path d="M12 3.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7z" fill="#7b83eb"/><path d="M16.5 10.5V18a4.5 4.5 0 0 1-9 0v-7.5A1.5 1.5 0 0 1 9 9h6a1.5 1.5 0 0 1 1.5 1.5z" fill="#7b83eb"/><path d="M2 11h8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" fill="#4b53bc"/><path d="M8 14H4v1.5h4V14zm0-2H4v1h4v-1z" fill="#fff"/></svg>
+      </div>
+      <div class="orbit-icon orbit-icon-4" title="Confluence">
+        <svg viewBox="0 0 24 24" fill="none"><defs><linearGradient id="ocg1" x1="99%" y1="5%" x2="45%" y2="96%"><stop offset="0%" stop-color="#0052cc"/><stop offset="92%" stop-color="#2684ff"/></linearGradient><linearGradient id="ocg2" x1="1%" y1="95%" x2="55%" y2="4%"><stop offset="0%" stop-color="#0052cc"/><stop offset="92%" stop-color="#2684ff"/></linearGradient></defs><path d="M2.2 16.5c-.16.28-.36.62-.36.62a.44.44 0 0 0 .18.6l3.9 2.34a.44.44 0 0 0 .6-.16s.55-.98 1.25-2.02c2.26-3.3 4.54-2.6 8.42-.94l4.06 1.74a.45.45 0 0 0 .58-.22l1.98-4.6a.44.44 0 0 0-.22-.56c-1.56-.68-4.68-2.02-7.56-3.24C9.16 7.8 4.56 11.14 2.2 16.5z" fill="url(#ocg1)"/><path d="M21.8 7.5c.16-.28.36-.62.36-.62a.44.44 0 0 0-.18-.6l-3.9-2.34a.44.44 0 0 0-.6.16s-.55.98-1.25 2.02c-2.26 3.3-4.54 2.6-8.42.94L3.75 5.32a.45.45 0 0 0-.58.22L1.19 10.14a.44.44 0 0 0 .22.56c1.56.68 4.68 2.02 7.56 3.24C14.84 16.2 19.44 12.86 21.8 7.5z" fill="url(#ocg2)"/></svg>
+      </div>
+    </div>
+    <div class="loading-title">Light<span>House</span></div>
+    <div class="loading-bar"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+    <div class="loading-text" id="loadingText">Initializing...</div>
+  </div>
+</div>
+<div class="meeting-popup-overlay" id="meetingPopupOverlay">
+  <div class="meeting-popup" id="meetingPopup"></div>
+</div>
+<script>
+// Sidebar toggle logic
+const sidebar = document.getElementById('sidebar');
+const toggleBtn = document.getElementById('sidebarToggle');
+const overlay = document.getElementById('sidebarOverlay');
+
+// Restore state from localStorage
+if (localStorage.getItem('sidebarCollapsed') === 'true') {
+  sidebar.classList.add('collapsed');
+  document.body.classList.add('sidebar-collapsed');
+}
+
+toggleBtn.addEventListener('click', () => {
+  const isMobile = window.innerWidth <= 900;
+  if (isMobile) {
+    sidebar.classList.toggle('mobile-open');
+    overlay.classList.toggle('visible', sidebar.classList.contains('mobile-open'));
+  } else {
+    sidebar.classList.toggle('collapsed');
+    document.body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+  }
+});
+
+overlay.addEventListener('click', () => {
+  sidebar.classList.remove('mobile-open');
+  overlay.classList.remove('visible');
+});
+</script>
+<script type="module" src="/static/js/project_dashboard.js"></script>
+<script src="/static/js/solution_chat.js"></script>
+</body>
+</html>

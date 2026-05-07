@@ -27,9 +27,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*'] if DEBUG else os.getenv('ALLOWED_HOSTS', '').split(',')
+
+# CORS settings — allow frontend dev server
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+CORS_ALLOW_CREDENTIALS = True
 
 
 # Application definition
@@ -41,13 +48,22 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # PostgreSQL specific fields (ArrayField etc.)
+    'django.contrib.postgres',
+    # Third-party
+    'corsheaders',
+    'rest_framework',
+    'drf_spectacular',
     # Local apps
     'my_app',
+    'knowledge_base',
+    'api',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -86,6 +102,9 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
         'PORT': os.getenv('DB_PORT'),
+        'OPTIONS': {
+            'connect_timeout': 10,
+        },
     }
 }
 
@@ -130,3 +149,37 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# drf-spectacular – OpenAPI 3.0 schema generation
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Ex-CDI Knowledge Base API',
+    'DESCRIPTION': (
+        'API for the Ex-CDI onboarding knowledge base.\n\n'
+        '**Capabilities:**\n'
+        '- Browse Git commits, Jira tickets, Confluence pages, meetings, and projects\n'
+        '- Full-text search across all entity types\n'
+        '- Ingest data from GitHub, Jira, Confluence, and meeting VTT files\n'
+        '- Delete any entity by type and ID\n'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'TAGS': [
+        {'name': 'Commits',    'description': 'Git commit data'},
+        {'name': 'Tickets',    'description': 'Jira ticket data'},
+        {'name': 'Pages',      'description': 'Confluence page data'},
+        {'name': 'Meetings',   'description': 'Meeting transcripts & metadata'},
+        {'name': 'Projects',   'description': 'Project groupings'},
+        {'name': 'Employees',  'description': 'Team member records'},
+        {'name': 'Sprints',    'description': 'Sprint data with linked tickets'},
+        {'name': 'Decisions',  'description': 'Unified decision timeline'},
+        {'name': 'Search',     'description': 'Cross-entity full-text search'},
+        {'name': 'Ingestion',  'description': 'Pull data from external sources'},
+        {'name': 'Delete',     'description': 'Remove records'},
+    ],
+}

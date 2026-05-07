@@ -10,9 +10,13 @@ Backend of the ex-cdi project. Built with Django 5.2 and PostgreSQL.
 |-------|-----------|
 | Language | Python 3.11 |
 | Framework | Django 5.2 |
+| REST API | Django REST Framework |
+| API Docs | drf-spectacular (Swagger UI) |
+| CORS | django-cors-headers |
 | Database | PostgreSQL |
 | DB Driver | psycopg2-binary |
 | Env management | python-dotenv |
+| AI / LLM | Bytez API (GPT-4o) |
 
 ---
 
@@ -31,13 +35,24 @@ ex-cdi/
 │   ├── urls.py             ← root URL routing
 │   ├── wsgi.py             ← production WSGI entry point
 │   └── asgi.py             ← production ASGI entry point
-└── my_app/                 ← main application
-    ├── models.py           ← database models
-    ├── views.py            ← request/response logic
-    ├── admin.py            ← admin panel config
-    ├── apps.py             ← app config
-    ├── tests.py            ← test cases
-    └── migrations/         ← auto-generated DB migrations
+├── api/                    ← REST API layer
+│   ├── urls.py             ← all API route definitions
+│   ├── views.py            ← all API views
+│   ├── serializers.py      ← data serializers
+│   └── ingestion.py        ← GitHub / Jira / Confluence ingest logic
+├── knowledge_base/         ← database models
+│   └── models.py           ← GitCommit, JiraTicket, Meeting, Decision, etc.
+├── chatbot/                ← AI chatbot module
+│   ├── main.py             ← main orchestrator (OnboardingChatbot)
+│   ├── intent/             ← intent classification
+│   ├── retriever/          ← SQL-based data retrieval
+│   ├── context/            ← context building for LLM
+│   └── llm/                ← Bytez/GPT-4o wrapper
+├── frontend/               ← static frontend assets
+│   └── static/
+│       └── js/
+│           └── solution_chat.js  ← AI chat panel
+└── my_app/                 ← legacy app (kept for compatibility)
 ```
 
 ---
@@ -113,6 +128,7 @@ All secrets live in `.env`. Never commit this file. Use `.env.example` as the te
 | `DB_PASSWORD` | PostgreSQL password | `changeme` |
 | `DB_HOST` | Database host | `localhost` |
 | `DB_PORT` | Database port | `5432` |
+| `BYTEZ_API_KEY` | API key for Bytez (GPT-4o) — powers the AI chatbot | `your_key_here` |
 
 ---
 
