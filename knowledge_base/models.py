@@ -156,6 +156,9 @@ class ConfluencePage(models.Model):
     page_created_date = models.DateTimeField(blank=True, null=True)
     page_updated_date = models.DateTimeField(blank=True, null=True)
     source_filename = models.CharField(max_length=255, blank=True, null=True)
+    drift_risk = models.CharField(max_length=10, blank=True, null=True)
+    last_activity_date = models.DateTimeField(blank=True, null=True)
+    confluence_topics = ArrayField(models.TextField(), blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -416,6 +419,12 @@ class Decision(models.Model):
     )
     confidence_score = models.FloatField(blank=True, null=True)
     extraction_notes = models.TextField(blank=True, null=True)
+    last_reinforced_at = models.DateTimeField(blank=True, null=True)
+    drift_risk = models.CharField(
+        max_length=10,
+        choices=[('low', 'Low'), ('medium', 'Medium'), ('high', 'High')],
+        blank=True, null=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -426,3 +435,36 @@ class Decision(models.Model):
 
     def __str__(self):
         return f"{self.decision_date}: {self.title[:50]}"
+
+
+class DecisionConflict(models.Model):
+    CONFLICT_TYPE_CHOICES = [
+        ('direct',    'Direct'),
+        ('indirect',  'Indirect'),
+        ('potential', 'Potential'),
+    ]
+    SEVERITY_CHOICES = [
+        ('low',    'Low'),
+        ('medium', 'Medium'),
+        ('high',   'High'),
+    ]
+
+    id            = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    decision_a    = models.ForeignKey(
+        Decision, on_delete=models.CASCADE, related_name='conflicts_as_a', db_column='decision_a_id'
+    )
+    decision_b    = models.ForeignKey(
+        Decision, on_delete=models.CASCADE, related_name='conflicts_as_b', db_column='decision_b_id'
+    )
+    conflict_type = models.CharField(max_length=50, choices=CONFLICT_TYPE_CHOICES)
+    explanation   = models.TextField(blank=True, null=True)
+    severity      = models.CharField(max_length=10, choices=SEVERITY_CHOICES)
+    detected_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'decision_conflicts'
+        managed  = False
+        unique_together = [('decision_a', 'decision_b')]
+
+    def __str__(self):
+        return f"[{self.severity.upper()}] {self.decision_a.title[:40]} ↔ {self.decision_b.title[:40]}"
