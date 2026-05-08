@@ -608,24 +608,267 @@
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #040a18;
-  --surface: rgba(8,18,40,0.88);
-  --surface2: rgba(12,24,52,0.75);
-  --border: rgba(56,140,220,0.15);
-  --border-bright: rgba(56,180,255,0.3);
+  --bg: #050b1c;
+  --surface: rgba(10,20,44,0.78);
+  --surface2: rgba(16,28,58,0.62);
+  --surface-elevated: rgba(14,26,52,0.92);
+  --border: rgba(99,179,255,0.13);
+  --border-bright: rgba(99,200,255,0.32);
   --accent: #1e8fff;
-  --accent2: #6c5ce7;
-  --text: #e0ecf8;
-  --muted: #4a6a8a;
-  --secondary: #7a9cc6;
-  --success: #00d48a;
-  --warn: #f0a020;
-  --danger: #ff4d6a;
+  --accent-soft: #4ab0ff;
+  --accent2: #8b5cf6;
+  --accent3: #22d3ee;
+  --text: #eaf2ff;
+  --muted: #56708e;
+  --secondary: #8aa4c8;
+  --success: #00e09a;
+  --warn: #f4b740;
+  --danger: #ff5470;
   --sidebar-w: 230px;
   --font-display: 'Rajdhani', sans-serif;
   --font-body: 'Source Sans 3', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+
+  /* Refined elevation tokens */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.25), 0 0 0 1px rgba(99,179,255,0.04);
+  --shadow-md:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 6px 16px rgba(0,0,0,0.35),
+    0 0 0 1px rgba(99,179,255,0.05);
+  --shadow-lg:
+    0 1px 0 rgba(255,255,255,0.05) inset,
+    0 12px 28px rgba(0,0,0,0.45),
+    0 32px 80px rgba(0,0,0,0.35),
+    0 0 0 1px rgba(99,179,255,0.06);
+  --shadow-glow:
+    0 0 24px rgba(30,143,255,0.18),
+    0 0 48px rgba(139,92,246,0.10);
+  --gradient-accent: linear-gradient(135deg, #1e8fff 0%, #8b5cf6 100%);
+  --gradient-accent-soft: linear-gradient(135deg, rgba(30,143,255,0.18) 0%, rgba(139,92,246,0.14) 100%);
+  --gradient-border: linear-gradient(135deg,
+    rgba(99,179,255,0.42) 0%,
+    rgba(139,92,246,0.22) 50%,
+    rgba(99,179,255,0.04) 100%);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* ============================================================
+   POLISH LAYER — refined dark-glass v2
+   Visual upgrade only; layout/positioning rules untouched.
+   ============================================================ */
+
+/* Background — deeper navy with subtle aurora */
+.page-bg::before { background: rgba(5, 11, 28, 0.78); }
+.page-bg {
+  background-blend-mode: normal;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 12% 18%, rgba(30,143,255,0.10), transparent 60%),
+    radial-gradient(50% 40% at 92% 84%, rgba(139,92,246,0.10), transparent 65%);
+  filter: blur(40px);
+}
+
+/* Sidebar — tighter glass + smoother hover state */
+.sidebar {
+  background: linear-gradient(180deg, rgba(10,20,44,0.70) 0%, rgba(8,16,36,0.62) 100%) !important;
+  border-right: 1px solid var(--border) !important;
+  backdrop-filter: blur(28px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.5) !important;
+  box-shadow: 1px 0 0 rgba(255,255,255,0.02) inset, 2px 0 24px rgba(0,0,0,0.25);
+}
+.sidebar:hover { background: linear-gradient(180deg, rgba(12,22,48,0.84) 0%, rgba(10,20,42,0.74) 100%) !important; }
+
+.sidebar-nav-item, .nav-item, .prj-item, .prj-sub-link {
+  transition: background .2s var(--ease-out), color .2s var(--ease-out), transform .15s var(--ease-out) !important;
+}
+.sidebar-nav-item:hover, .nav-item:hover, .prj-sub-link:hover { transform: translateX(2px); }
+
+/* Topbar — subtle separator with gradient */
+.topbar {
+  background: rgba(8,16,36,0.55) !important;
+  backdrop-filter: blur(28px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.4) !important;
+  border-bottom: 1px solid transparent !important;
+  position: sticky;
+  background-image:
+    linear-gradient(rgba(8,16,36,0.55), rgba(8,16,36,0.55)),
+    linear-gradient(90deg, transparent, rgba(99,179,255,0.25), transparent);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+.page-title {
+  background: linear-gradient(180deg, #ffffff 0%, #b9cdee 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  letter-spacing: 0.2px;
+}
+
+/* Aurora cards — gradient borders + layered shadow on key surfaces */
+.dm-card,
+.detail-panel,
+.project-goal-banner,
+.project-summary-banner,
+.timeline-wrap {
+  position: relative;
+  background: linear-gradient(180deg, rgba(13,24,52,0.82) 0%, rgba(10,20,44,0.78) 100%) !important;
+  border: 1px solid transparent !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  isolation: isolate;
+}
+.dm-card::before,
+.detail-panel::before,
+.project-goal-banner::before,
+.project-summary-banner::before,
+.timeline-wrap::before {
+  content: '';
+  position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+  background: var(--gradient-border);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  pointer-events: none;
+  z-index: 0;
+}
+.dm-card > *,
+.detail-panel > *,
+.project-goal-banner > *,
+.project-summary-banner > *,
+.timeline-wrap > * { position: relative; z-index: 1; }
+
+/* Dashboard primary button — gradient + shimmer + glow */
+.main .btn-primary,
+.topbar .btn-primary {
+  position: relative;
+  background: var(--gradient-accent) !important;
+  border-radius: 10px !important;
+  padding: 9px 16px !important;
+  overflow: hidden; isolation: isolate;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.15) inset,
+    0 6px 18px rgba(30,143,255,0.30),
+    0 0 24px rgba(139,92,246,0.18) !important;
+  transition: transform .18s var(--ease-out), box-shadow .25s var(--ease-out), filter .2s !important;
+}
+.main .btn-primary::before,
+.topbar .btn-primary::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.22) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.7s var(--ease-out);
+  pointer-events: none;
+}
+.main .btn-primary:hover,
+.topbar .btn-primary:hover {
+  filter: brightness(1.08) saturate(1.1);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.2) inset,
+    0 10px 28px rgba(30,143,255,0.45),
+    0 0 36px rgba(139,92,246,0.25) !important;
+}
+.main .btn-primary:hover::before,
+.topbar .btn-primary:hover::before { transform: translateX(120%); }
+
+.btn-ghost {
+  background: rgba(16,28,58,0.5) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  transition: background .2s var(--ease-out), border-color .2s, transform .15s !important;
+}
+.btn-ghost:hover {
+  background: rgba(20,34,68,0.7) !important;
+  border-color: var(--border-bright) !important;
+  transform: translateY(-1px);
+}
+
+/* Refined logo glow */
+.logo-icon {
+  background: var(--gradient-accent) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.08) inset,
+    0 6px 18px rgba(30,143,255,0.28),
+    0 0 24px rgba(139,92,246,0.20) !important;
+}
+
+/* User chip + avatar */
+.user-chip {
+  background: rgba(16,28,58,0.45);
+  border: 1px solid var(--border);
+  border-radius: 12px !important;
+}
+.avatar-sm {
+  background: var(--gradient-accent) !important;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset, 0 4px 12px rgba(30,143,255,0.25);
+}
+
+/* Decision-map header polish */
+.dm-card-header {
+  background: linear-gradient(135deg, rgba(30,143,255,0.16) 0%, rgba(139,92,246,0.14) 100%) !important;
+  border-bottom: 1px solid rgba(99,179,255,0.12) !important;
+}
+.dm-header-icon {
+  background: var(--gradient-accent) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.10) inset,
+    0 6px 18px rgba(30,143,255,0.32),
+    0 0 24px rgba(139,92,246,0.20) !important;
+}
+.dm-page-title {
+  background: linear-gradient(180deg, #ffffff 0%, #b9cdee 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent !important;
+}
+
+/* Filter buttons — pill polish */
+.dtm-filter-btn {
+  border-radius: 22px !important;
+  padding: 8px 18px !important;
+  transition: all .22s var(--ease-out) !important;
+}
+.dtm-filter-btn:hover { transform: translateY(-1px); }
+
+/* Smooth global focus ring on interactive elements */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid rgba(99,179,255,0.55);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* Custom scrollbar to match the dark-glass aesthetic */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(99,179,255,0.25), rgba(139,92,246,0.18));
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(99,179,255,0.45), rgba(139,92,246,0.30));
+  background-clip: padding-box;
+}
+
+/* Loading overlay polish */
+.loading-overlay {
+  background: radial-gradient(ellipse at center, #07112a 0%, #040a18 70%) !important;
+}
+.loading-bar {
+  border-radius: 999px !important;
+  background: rgba(99,179,255,0.08) !important;
+  overflow: hidden;
+}
+.loading-bar-fill {
+  background: var(--gradient-accent) !important;
+  box-shadow: 0 0 12px rgba(30,143,255,0.5);
+}
+
+/* End polish layer ============================================ */
 
 body {
   font-family: var(--font-body);

@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LightHouse — May 12 Presentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary: #1e8fff;
+            --primary-dark: #1566c9;
+            --secondary: #6c5ce7;
+            --accent: #00e5ff;
+            --success: #00d48a;
+            --surface: #0d1525;
+            --surface-light: #141d2e;
+            --border: #1a2a42;
+            --text-primary: #e2eaf3;
+            --text-secondary: #a8b5c4;
+            --text-muted: #768399;
+            --bg-dark: #080e1a;
+        }
+        
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+        
+        .presentation-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #080e1a 0%, #0d1525 50%, #0a1020 100%);
+        }
+        
+        .slide {
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .slide.active {
+            display: flex;
+        }
+        
+        /* ──── Animated Background Elements ──── */
+        .slide::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(30, 143, 255, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: 0;
+            animation: float 8s ease-in-out infinite;
+        }
+        
+        .slide::after {
+            content: '';
+            position: absolute;
+            bottom: -30%;
+            left: -10%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(108, 92, 231, 0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: 0;
+            animation: float-reverse 10s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(30px); }
+        }
+        
+        @keyframes float-reverse {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-30px); }
+        }
+        
+        .slide-content {
+            position: relative;
+            z-index: 1;
+            max-width: 1000px;
+            text-align: center;
+        }
+        
+        .slide-content.left-align {
+            text-align: left;
+            align-self: flex-start;
+            margin-left: 80px;
+        }
+        
+        /* ──── Slide Components ──── */
+        .slide-number {
+            position: absolute;
+            bottom: 30px;
+            right: 50px;
+            font-size: 14px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 2px;
+        }
+        
+        /* ──── Title Slide (Slide 1) ──── */
+        .title-slide {
+            background: linear-gradient(135deg, rgba(30,143,255,0.15) 0%, rgba(108,92,231,0.1) 100%);
+        }
+        
+        .main-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 72px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #1e8fff 0%, #6c5ce7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .main-subtitle {
+            font-size: 28px;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+        
+        .date-info {
+            font-size: 16px;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 1px;
+        }
+        
+        /* ──── Section Title ──── */
+        .section-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 56px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 80px;
+            color: var(--text-primary);
+        }
+        
+        .section-subtitle {
+            font-size: 20px;
+            color: var(--text-secondary);
+            margin-top: -60px;
+            margin-bottom: 40px;
+            font-weight: 300;
+        }
+        
+        /* ──── Content Grid ──── */
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            width: 100%;
+            max-width: 1000px;
+        }
+        
+        .content-card {
+            background: rgba(20, 29, 46, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 32px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+        
+        .content-card:hover {
+            background: rgba(20, 29, 46, 0.8);
+            border-color: var(--primary);
+            box-shadow: 0 0 20px rgba(30, 143, 255, 0.15);
+            transform: translateY(-5px);
+        }
+        
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #1e8fff 0%, #6c5ce7 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            font-size: 28px;
+        }
+        
+        .card-title {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+        
+        .card-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        
+        /* ──── Feature List ──── */
+        .feature-list {
+            list-style: none;
+            text-align: left;
+            display: inline-block;
+        }
+        
+        .feature-list li {
+            font-size: 18px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            padding-left: 30px;
+            position: relative;
+        }
+        
+        .feature-list li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: 700;
+        }
+        
+        /* ──── Demo Section ──── */
+        .demo-frame {
+            width: 100%;
+            max-width: 900px;
+            height: 500px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: var(--text-muted);
+            margin-top: 40px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .demo-placeholder {
+            text-align: center;
+        }
+        
+        .demo-placeholder svg {
+            width: 80px;
+            height: 80px;
+            stroke: var(--primary);
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        /* ──── Call to Action ──── */
+        .cta-container {
+            margin-top: 60px;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            padding: 16px 40px;
+            background: linear-gradient(135deg, #1e8fff 0%, #6c5ce7 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.5px;
+        }
+        
+        .cta-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(30, 143, 255, 0.4);
+        }
+        
+        /* ──── Navigation ──── */
+        .nav-bar {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 100;
+        }
+        
+        .nav-btn {
+            width: 50px;
+            height: 50px;
+            background: rgba(20, 29, 46, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+        
+        .nav-btn:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .nav-btn svg {
+            width: 24px;
+            height: 24px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        
+        .slide-progress {
+            position: fixed;
+            top: 30px;
+            right: 40px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+        }
+        
+        /* ──── Stats Display ──── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            width: 100%;
+            max-width: 900px;
+            margin-top: 40px;
+        }
+        
+        .stat-box {
+            background: rgba(20, 29, 46, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-number {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 42px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation-container">
+        <!-- Slide 1: Title -->
+        <div class="slide active title-slide">
+            <div class="slide-content">
+                <div class="main-title">LightHouse</div>
+                <div class="main-subtitle">Intelligent Project Intelligence Platform</div>
+                <div style="margin-top: 60px;">
+                    <p style="font-size: 18px; color: var(--text-secondary); margin-bottom: 20px;">
+                        Streamlining Team Collaboration with AI-Powered Insights
+                    </p>
+                    <div class="date-info">May 12, 2026 | NEU Presentation</div>
+                </div>
+            </div>
+            <div class="slide-number">01</div>
+        </div>
+        
+        <!-- Slide 2: The Problem -->
+        <div class="slide">
+            <div class="slide-content left-align">
+                <div class="section-title">The Problem</div>
+                <div class="section-subtitle">Why teams struggle today</div>
+                <ul class="feature-list" style="margin-top: 40px;">
+                    <li><strong>Scattered Information:</strong> Knowledge spread across Jira, Confluence, GitHub, and emails</li>
+                    <li><strong>Decision Context Lost:</strong> No clear audit trail of why decisions were made</li>
+                    <li><strong>Onboarding Friction:</strong> New team members take weeks to understand project context</li>
+                    <li><strong>Meeting Insights Ignored:</strong> Recorded meetings gather dust without actionable summaries</li>
+                </ul>
+            </div>
+            <div class="slide-number">02</div>
+        </div>
+        
+        <!-- Slide 3: Our Solution -->
+        <div class="slide">
+            <div class="slide-content">
+                <div class="section-title">Our Solution</div>
+                <div class="content-grid">
+                    <div class="content-card">
+                        <div class="card-icon">🔗</div>
+                        <div class="card-title">Unified Integration</div>
+                        <div class="card-description">Connect all your data sources—Jira, Confluence, GitHub, meeting recordings—in one platform</div>
+                    </div>
+                    <div class="content-card">
+                        <div class="card-icon">🤖</div>
+                        <div class="card-title">AI-Powered Insights</div>
+                        <div class="card-description">Intelligent chatbot that understands your project context and answers questions instantly</div>
+                    </div>
+                    <div class="content-card">
+                        <div class="card-icon">📊</div>
+                        <div class="card-title">Decision Timeline</div>
+                        <div class="card-description">Visual map of all project decisions with full context and rationale</div>
+                    </div>
+                    <div class="content-card">
+                        <div class="card-icon">⚡</div>
+                        <div class="card-title">Smart Onboarding</div>
+                        <div class="card-description">New team members get up to speed in hours, not weeks, with AI-powered context</div>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-number">03</div>
+        </div>
+        
+        <!-- Slide 4: Key Features -->
+        <div class="slide">
+            <div class="slide-content left-align">
+                <div class="section-title">Key Features</div>
+                <ul class="feature-list" style="margin-top: 40px;">
+                    <li><strong>Context Builder:</strong> Automatically extracts and summarizes information from all sources</li>
+                    <li><strong>Intent Classification:</strong> Understands user queries and routes to relevant knowledge</li>
+                    <li><strong>SQL Retriever:</strong> Efficient data retrieval from structured and unstructured data</li>
+                    <li><strong>LLM Integration:</strong> Powered by GPT-4o via Bytez API for natural conversations</li>
+                    <li><strong>Decision Management:</strong> Track, visualize, and explain all project decisions</li>
+                </ul>
+            </div>
+            <div class="slide-number">04</div>
+        </div>
+        
+        <!-- Slide 5: Tech Stack -->
+        <div class="slide">
+            <div class="slide-content">
+                <div class="section-title">Technical Architecture</div>
+                <div class="stats-grid" style="margin-top: 60px;">
+                    <div class="stat-box">
+                        <div style="font-size: 28px; margin-bottom: 12px;">🐍</div>
+                        <div class="card-title">Backend</div>
+                        <div class="card-description">Django 5.2 + DRF + PostgreSQL</div>
+                    </div>
+                    <div class="stat-box">
+                        <div style="font-size: 28px; margin-bottom: 12px;">🎨</div>
+                        <div class="card-title">Frontend</div>
+                        <div class="card-description">Modern UI with Vite + Vanilla JS</div>
+                    </div>
+                    <div class="stat-box">
+                        <div style="font-size: 28px; margin-bottom: 12px;">🧠</div>
+                        <div class="card-title">AI/LLM</div>
+                        <div class="card-description">GPT-4o via Bytez API</div>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-number">05</div>
+        </div>
+        
+        <!-- Slide 6: Business Model -->
+        <div class="slide">
+            <div class="slide-content left-align">
+                <div class="section-title">Business Model</div>
+                <div class="section-subtitle">How we create value and generate revenue</div>
+                <ul class="feature-list" style="margin-top: 40px;">
+                    <li><strong>SaaS Pricing:</strong> Tiered subscription based on team size and data volume</li>
+                    <li><strong>Enterprise Support:</strong> Premium support packages for large organizations</li>
+                    <li><strong>API Access:</strong> Developer-friendly APIs for integrations and extensions</li>
+                    <li><strong>Data Analytics:</strong> Advanced analytics modules for team insights and productivity</li>
+                </ul>
+            </div>
+            <div class="slide-number">06</div>
+        </div>
+        
+        <!-- Slide 7: Target Market -->
+        <div class="slide">
+            <div class="slide-content">
+                <div class="section-title">Target Market</div>
+                <div class="content-grid">
+                    <div class="content-card">
+                        <div class="card-icon">🏢</div>
+                        <div class="card-title">Mid to Large Enterprises</div>
+                        <div class="card-description">Teams with complex projects and multiple data sources</div>
+                    </div>
+                    <div class="content-card">
+                        <div class="card-icon">🎯</div>
+                        <div class="card-title">Tech Companies</div>
+                        <div class="card-description">SaaS platforms managing distributed teams and projects</div>
+                    </div>
+                </div>
+                <div style="margin-top: 40px; font-size: 16px; color: var(--text-secondary);">
+                    <p><strong>Market Opportunity:</strong> $5B+ TAM in project management and team collaboration</p>
+                </div>
+            </div>
+            <div class="slide-number">07</div>
+        </div>
+        
+        <!-- Slide 8: Demo -->
+        <div class="slide">
+            <div class="slide-content">
+                <div class="section-title">Live Demo</div>
+                <div class="demo-frame">
+                    <div class="demo-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                        <p>Interactive Product Demo</p>
+                        <p style="font-size: 14px; margin-top: 10px;">Showcasing key features and user interactions</p>
+                    </div>
+                </div>
+                <p style="margin-top: 30px; font-size: 14px; color: var(--text-muted);">
+                    🎬 Replace demo-frame with embedded video or live application
+                </p>
+            </div>
+            <div class="slide-number">08</div>
+        </div>
+        
+        <!-- Slide 9: Roadmap -->
+        <div class="slide">
+            <div class="slide-content left-align">
+                <div class="section-title">Product Roadmap</div>
+                <ul class="feature-list" style="margin-top: 40px;">
+                    <li><strong>Q2 2026:</strong> Beta launch with 3-5 enterprise customers</li>
+                    <li><strong>Q3 2026:</strong> Advanced analytics and team insights module</li>
+                    <li><strong>Q4 2026:</strong> Mobile app for on-the-go access</li>
+                    <li><strong>2027:</strong> Custom AI model fine-tuning for enterprise clients</li>
+                </ul>
+            </div>
+            <div class="slide-number">09</div>
+        </div>
+        
+        <!-- Slide 10: Thank You / Q&A -->
+        <div class="slide">
+            <div class="slide-content">
+                <div style="font-family: 'Rajdhani', sans-serif; font-size: 64px; font-weight: 700; margin-bottom: 40px; color: var(--text-primary);">
+                    Questions?
+                </div>
+                <div style="font-size: 20px; color: var(--text-secondary); margin-bottom: 60px;">
+                    Let's discuss LightHouse and how it can transform your team's collaboration
+                </div>
+                <div style="display: flex; gap: 20px; justify-content: center;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 5px;">Website</div>
+                        <div style="color: var(--accent);">lighthouse.io</div>
+                    </div>
+                    <div style="width: 1px; background: var(--border);"></div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 5px;">Email</div>
+                        <div style="color: var(--accent);">team@lighthouse.io</div>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-number">10</div>
+        </div>
+    </div>
+    
+    <!-- Navigation Bar -->
+    <div class="nav-bar">
+        <button class="nav-btn" id="prevBtn" title="Previous slide">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <button class="nav-btn" id="fullscreenBtn" title="Toggle fullscreen">
+            <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+        <button class="nav-btn" id="nextBtn" title="Next slide">
+            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+    </div>
+    
+    <!-- Slide Progress -->
+    <div class="slide-progress">
+        <span id="currentSlide">1</span> / <span id="totalSlides">10</span>
+    </div>
+    
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        
+        document.getElementById('totalSlides').textContent = totalSlides;
+        
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            document.getElementById('currentSlide').textContent = currentSlide + 1;
+        }
+        
+        document.getElementById('prevBtn').addEventListener('click', () => showSlide(currentSlide - 1));
+        document.getElementById('nextBtn').addEventListener('click', () => showSlide(currentSlide + 1));
+        
+        document.getElementById('fullscreenBtn').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        });
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') showSlide(currentSlide - 1);
+            if (e.key === 'ArrowRight') showSlide(currentSlide + 1);
+            if (e.key === 'f') document.getElementById('fullscreenBtn').click();
+        });
+    </script>
+</body>
+</html>

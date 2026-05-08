@@ -2,6 +2,175 @@
    LightHouse — Solution Chat Panel (Agentic Mode)
    ============================================================ */
 
+/* ============================================================
+   POLISH LAYER — refined dark-glass v2
+   Visual upgrade only; layout/positioning rules untouched.
+   ============================================================ */
+
+/* Collapsed FAB tab — gradient text + soft halo */
+.solution-collapsed-tab {
+  background: linear-gradient(180deg, rgba(14,26,52,0.96) 0%, rgba(10,20,44,0.94) 100%) !important;
+  border: 1px solid rgba(99,179,255,0.20) !important;
+  border-radius: 14px !important;
+  box-shadow:
+    -4px 0 24px rgba(0,0,0,0.4),
+    0 0 24px rgba(30,143,255,0.18) !important;
+  transition: transform .25s cubic-bezier(0.22,1,0.36,1),
+              box-shadow .25s cubic-bezier(0.22,1,0.36,1),
+              border-color .2s !important;
+}
+.solution-collapsed-tab:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99,200,255,0.45) !important;
+  box-shadow:
+    -4px 0 32px rgba(0,0,0,0.45),
+    0 0 36px rgba(30,143,255,0.30) !important;
+}
+
+/* Main panel — refined glass with aurora seam */
+.solution-panel {
+  background: linear-gradient(180deg, rgba(10,18,40,0.92) 0%, rgba(6,12,28,0.94) 100%) !important;
+  border-left: 1px solid transparent !important;
+  backdrop-filter: blur(32px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.5) !important;
+  box-shadow:
+    -1px 0 0 rgba(99,179,255,0.10) inset,
+    -8px 0 32px rgba(0,0,0,0.45) !important;
+}
+.solution-panel::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 1px;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(99,179,255,0.30) 30%,
+    rgba(139,92,246,0.30) 70%,
+    transparent 100%);
+  pointer-events: none;
+}
+
+/* Panel header — subtle gradient line below */
+.solution-header {
+  border-bottom: 1px solid transparent !important;
+  background-image:
+    linear-gradient(rgba(8,16,36,0.6), rgba(8,16,36,0.6)),
+    linear-gradient(90deg, transparent, rgba(99,179,255,0.30), transparent);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  padding: 18px 18px !important;
+}
+.solution-header-icon {
+  background: linear-gradient(135deg, #1e8fff 0%, #8b5cf6 100%) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.10) inset,
+    0 6px 18px rgba(30,143,255,0.32),
+    0 0 24px rgba(139,92,246,0.20);
+  border-radius: 11px !important;
+}
+.solution-header-title {
+  background: linear-gradient(180deg, #ffffff 0%, #b9cdee 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent !important;
+}
+.solution-header-title span {
+  background: linear-gradient(135deg, #4ab0ff 0%, #a78bfa 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent !important;
+}
+
+/* Welcome screen — softer gradient halo on icon */
+.solution-welcome-icon {
+  background: radial-gradient(circle at 30% 30%, rgba(30,143,255,0.18), rgba(139,92,246,0.10) 70%) !important;
+  border: 1px solid rgba(99,179,255,0.20) !important;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04) inset, 0 8px 24px rgba(30,143,255,0.15);
+}
+.solution-suggestion {
+  background: rgba(16,28,58,0.45) !important;
+  border: 1px solid rgba(99,179,255,0.12) !important;
+  border-radius: 12px !important;
+  transition: transform .18s cubic-bezier(0.22,1,0.36,1),
+              background .2s, border-color .2s !important;
+}
+.solution-suggestion:hover {
+  transform: translateY(-1px);
+  background: rgba(20,34,68,0.65) !important;
+  border-color: rgba(99,200,255,0.40) !important;
+}
+
+/* Message avatars — refined glow */
+.msg-avatar.bot {
+  background: linear-gradient(135deg, #1e8fff 0%, #8b5cf6 100%) !important;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.10) inset, 0 4px 12px rgba(30,143,255,0.28);
+}
+.msg-avatar.user {
+  background: linear-gradient(135deg, #00e09a 0%, #1e8fff 100%) !important;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.10) inset, 0 4px 12px rgba(0,224,154,0.25);
+}
+
+/* Message content polish */
+.msg-content code {
+  background: rgba(30,143,255,0.10) !important;
+  border: 1px solid rgba(99,179,255,0.20) !important;
+  color: #6bb7ff !important;
+  border-radius: 5px !important;
+}
+.msg-content pre {
+  background: rgba(4,10,24,0.85) !important;
+  border: 1px solid rgba(99,179,255,0.14) !important;
+  border-radius: 10px !important;
+}
+
+/* Input area — refined glass with aurora separator */
+.solution-input-area {
+  background: rgba(6,12,28,0.65) !important;
+  border-top: 1px solid transparent !important;
+  background-image:
+    linear-gradient(rgba(6,12,28,0.65), rgba(6,12,28,0.65)),
+    linear-gradient(90deg, transparent, rgba(99,179,255,0.25), transparent);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  padding: 16px 16px !important;
+}
+.solution-input-wrap {
+  background: rgba(12,22,48,0.70) !important;
+  border: 1px solid rgba(99,179,255,0.18) !important;
+  border-radius: 14px !important;
+  padding: 10px 14px !important;
+  transition: border-color .2s, box-shadow .2s, background .2s !important;
+}
+.solution-input-wrap:focus-within {
+  border-color: rgba(99,200,255,0.55) !important;
+  background: rgba(14,26,56,0.85) !important;
+  box-shadow:
+    0 0 0 4px rgba(30,143,255,0.14),
+    0 0 24px rgba(30,143,255,0.18) !important;
+}
+
+/* Send button — gradient + glow */
+.solution-send-btn {
+  background: linear-gradient(135deg, #1e8fff 0%, #8b5cf6 100%) !important;
+  border-radius: 10px !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.12) inset,
+    0 4px 14px rgba(30,143,255,0.30),
+    0 0 20px rgba(139,92,246,0.18);
+  transition: transform .18s cubic-bezier(0.22,1,0.36,1), filter .2s, box-shadow .25s !important;
+}
+.solution-send-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4ab0ff 0%, #a78bfa 100%) !important;
+  filter: brightness(1.05);
+  transform: translateY(-1px) scale(1.04);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.18) inset,
+    0 8px 22px rgba(30,143,255,0.45),
+    0 0 28px rgba(139,92,246,0.30);
+}
+
+.solution-hint kbd {
+  background: rgba(16,28,58,0.6) !important;
+  border: 1px solid rgba(99,179,255,0.16) !important;
+  border-radius: 4px !important;
+}
+
+/* End polish layer ============================================ */
+
 /* ── Collapsed Tab (visible when panel is closed) ────────── */
 .solution-collapsed-tab {
   position: fixed;

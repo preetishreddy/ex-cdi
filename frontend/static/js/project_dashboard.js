@@ -1280,10 +1280,8 @@ async function loadProjectRail() {
 /**
  * Ensures the currently logged-in user is part of the active project's team_members.
  * If not, sends a POST to the backend to add them.
- * Disabled — team list is now managed manually.
  */
 async function ensureUserInProjectTeam() {
-  return; // disabled
   const currentUserName = sessionStorage.getItem('userName') || userName;
   if (!currentUserName || !projectsCache.length) return;
 
