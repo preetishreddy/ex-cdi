@@ -178,11 +178,13 @@ async function fetchSprints() {
     renderProjectSummary();
     applyPageRouting();
     if (getCurrentPage() === 'overview') {
-      document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
+      const pid = new URLSearchParams(window.location.search).get('project');
+      const filteredSprints = getProjectSprints(pid);
+      document.getElementById('topbarSub').textContent = `${filteredSprints.length} sprints`;
       loadProjectTicketStats();
       buildTimeline();
-      if (SPRINTS.length) {
-        selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+      if (filteredSprints.length) {
+        selectSprint((filteredSprints.find(s => s.status === 'current') || filteredSprints[0]).id);
       }
     }
     return;
@@ -212,11 +214,13 @@ async function fetchSprints() {
     renderProjectSummary();
     applyPageRouting();
     if (getCurrentPage() === 'overview') {
-      document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
+      const pid = new URLSearchParams(window.location.search).get('project');
+      const filteredSprints = getProjectSprints(pid);
+      document.getElementById('topbarSub').textContent = `${filteredSprints.length} sprints`;
       loadProjectTicketStats();
       buildTimeline();
-      if (SPRINTS.length) {
-        selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+      if (filteredSprints.length) {
+        selectSprint((filteredSprints.find(s => s.status === 'current') || filteredSprints[0]).id);
       }
     }
     // Remove overlay from DOM after transition
@@ -287,11 +291,33 @@ function esc(s) {
   return d.innerHTML;
 }
 
+// ── Get sprints filtered by project (limit to 3: completed, current, upcoming) ──
+function getProjectSprints(projectId) {
+  if (!projectId || !SPRINTS.length) return [];
+  
+  // Filter sprints by project
+  const projectSprints = SPRINTS.filter(s => s.project === projectId);
+  
+  if (projectSprints.length <= 3) return projectSprints;
+  
+  // Limit to 3 sprints: 1 completed, 1 current, 1 upcoming (in order)
+  const completed = projectSprints.filter(s => s.status === 'completed').reverse().slice(0, 1);
+  const current = projectSprints.filter(s => s.status === 'current').slice(0, 1);
+  const upcoming = projectSprints.filter(s => s.status === 'upcoming').slice(0, 1);
+  
+  return [...completed, ...current, ...upcoming].filter(s => s);
+}
+
 // ── Timeline ─────────────────────────────────────────────────
 function buildTimeline() {
   const wrap = document.getElementById('timelineWrap');
   const el = document.getElementById('timeline');
   wrap.classList.add('visible');
+
+  // Get current project and filtered sprints
+  const pid = new URLSearchParams(window.location.search).get('project');
+  const project = projectsCache.find(p => p.id === pid) || projectsCache[0];
+  const filteredSprints = getProjectSprints(project?.id);
 
   // ── Build header ──
   let headerEl = wrap.querySelector('.tl-header');
@@ -300,27 +326,28 @@ function buildTimeline() {
     headerEl.className = 'tl-header';
     wrap.insertBefore(headerEl, wrap.firstChild);
   }
-  const doneCount = SPRINTS.filter(s => s.status === 'completed').length;
+  const doneCount = filteredSprints.filter(s => s.status === 'completed').length;
+  const projectName = project?.name || 'Project Timeline';
   headerEl.innerHTML = `
     <div class="tl-header-icon">
       <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     </div>
-    <div class="timeline-label">Project Timeline — ONBOARD</div>
-    <div class="tl-header-count">${doneCount}/${SPRINTS.length} completed</div>`;
+    <div class="timeline-label">Project Timeline — ${esc(projectName)}</div>
+    <div class="tl-header-count">${doneCount}/${filteredSprints.length} completed</div>`;
 
   // Remove the old static label if still present
   const oldLabel = wrap.querySelector(':scope > .timeline-label');
   if (oldLabel) oldLabel.remove();
 
   // ── Progress percentage ──
-  const ci = SPRINTS.findIndex(s => s.status === 'current');
+  const ci = filteredSprints.findIndex(s => s.status === 'current');
   const pct = ci >= 0
-    ? ((ci + .5) / SPRINTS.length) * 100
-    : (SPRINTS.filter(s => s.status === 'completed').length / SPRINTS.length) * 100;
+    ? ((ci + .5) / filteredSprints.length) * 100
+    : (filteredSprints.filter(s => s.status === 'completed').length / filteredSprints.length) * 100;
 
   let h = `<div class="timeline-progress" style="width:${pct}%"></div>`;
 
-  SPRINTS.forEach((sp, idx) => {
+  filteredSprints.forEach((sp, idx) => {
     const c = sp.status === 'completed' ? 'completed' : sp.status === 'current' ? 'current' : 'future';
     const t = sp.status === 'completed' ? 'done' : sp.status === 'current' ? 'active-tag' : 'upcoming';
     const tx = sp.status === 'completed' ? 'DONE' : sp.status === 'current' ? 'ACTIVE' : 'UPCOMING';
@@ -355,13 +382,18 @@ function selectSprint(id) {
   const sp = SPRINTS.find(s => s.id === id);
   if (!sp) return;
 
+  // Get project name for display
+  const pid = new URLSearchParams(window.location.search).get('project');
+  const project = projectsCache.find(p => p.id === pid) || projectsCache[0];
+  const projectName = project?.name || 'Project';
+
   const p = document.getElementById('detailPanel');
 
   p.innerHTML = `
     <div class="detail-header">
       <div class="detail-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
       <div>
-        <div class="detail-title">${sp.name} — ONBOARD</div>
+        <div class="detail-title">${sp.name} — ${esc(projectName)}</div>
         <div class="detail-sub">${fmtR(sp.dates[0], sp.dates[1])}</div>
       </div>
     </div>
@@ -374,14 +406,14 @@ function selectSprint(id) {
     </div>
 
     <div class="tab-content active" id="dp-summary">
-      <div class="ai-summary-box">
-        <div class="ai-label"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg><span class="ai-dot"></span>AI Sprint Summary</div>
-        <div class="ai-summary-text">${sp.aiSummary}</div>
-      </div>
       ${sp.goal ? `<div class="sprint-goal-box">
         <div class="sprint-goal-label">Sprint Goal</div>
         <div class="sprint-goal-text">${esc(sp.goal)}</div>
       </div>` : ''}
+      <div class="ai-summary-box">
+        <div class="ai-label"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><circle cx="18" cy="6" r="3" fill="currentColor" stroke="none"/></svg><span class="ai-dot"></span>AI Sprint Summary</div>
+        <div class="ai-summary-text">${sp.aiSummary}</div>
+      </div>
     </div>
 
     <div class="tab-content" id="dp-meetings">
@@ -535,21 +567,27 @@ function loadSprintMeetings(sprintNumber) {
   const container = document.getElementById('dp-meetings');
   if (!container) return;
 
-  // Check cache first
-  if (sprintMeetingsCache[sprintNumber]) {
-    const sp = SPRINTS.find(s => s.sprint_number === sprintNumber);
-    if (sp) container.innerHTML = bCal(sp, sprintMeetingsCache[sprintNumber]);
+  // Get current project ID from URL
+  const pid = new URLSearchParams(window.location.search).get('project');
+
+  // Check cache first using project+sprint as key
+  const cacheKey = `${pid}:${sprintNumber}`;
+  if (sprintMeetingsCache[cacheKey]) {
+    const sp = SPRINTS.find(s => s.sprint_number === sprintNumber && s.project === pid);
+    if (sp) container.innerHTML = bCal(sp, sprintMeetingsCache[cacheKey]);
     return;
   }
 
   container.innerHTML = '<div class="decisions-loading"><div class="spinner"></div>Fetching sprint meetings…</div>';
 
-  fetch(`/api/sprints/${sprintNumber}/meetings/`)
+  // Pass project_id as query param to handle multiple sprints with same number
+  const url = `/api/sprints/${sprintNumber}/meetings/?project_id=${encodeURIComponent(pid)}`;
+  fetch(url)
     .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     .then(data => {
       const meetings = Array.isArray(data) ? data : (data.results || []);
-      sprintMeetingsCache[sprintNumber] = meetings;
-      const sp = SPRINTS.find(s => s.sprint_number === sprintNumber);
+      sprintMeetingsCache[cacheKey] = meetings;
+      const sp = SPRINTS.find(s => s.sprint_number === sprintNumber && s.project === pid);
       if (sp && container) {
         container.innerHTML = bCal(sp, meetings);
       }
@@ -870,15 +908,29 @@ function loadTickets() {
   const container = document.getElementById('dp-outcomes');
   if (!container) return;
   if (ticketsLoaded) { renderTickets(container, ticketsData); return; }
+  
+  // Get current sprint and project
+  const sp = SPRINTS.find(s => s.id === activeSprint);
+  if (!sp) {
+    container.innerHTML = '<div class="decisions-empty">No sprint selected.</div>';
+    return;
+  }
+
+  const pid = new URLSearchParams(window.location.search).get('project');
+
   container.innerHTML = '<div class="decisions-loading"><div class="spinner"></div>Fetching outcomes from API…</div>';
-  fetchTicketsOnce()
+  
+  // Use sprint-specific endpoint with project_id to avoid MultipleObjectsReturned errors
+  const url = `/api/sprints/${sp.sprint_number}/tickets/?project_id=${encodeURIComponent(pid)}`;
+  fetch(url)
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     .then(data => {
       ticketsLoaded = true;
-      ticketsData = data;
+      // Extract tickets from response (might be wrapped in a tickets array)
+      ticketsData = (data.tickets || data.results || data) || [];
       renderTickets(container, ticketsData);
     })
     .catch(err => {
-      _ticketsCachePromise = null; // allow retry
       container.innerHTML = `<div class="decisions-error">⚠ Failed to load outcomes: ${err.message}<br><button class="btn btn-ghost" style="margin-top:12px" onclick="window.ticketsLoaded=false;window.loadTickets()">Retry</button></div>`;
     });
 }
@@ -1236,46 +1288,76 @@ const PRJ_GRADIENTS = [
 ];
 let projectsCache = [];
 
+// Track current project and page globally
+let currentProjectId = null;
+let currentPageType = 'overview';
+
 async function loadProjectRail() {
-  const rail = document.getElementById('projectRail');
-  if (!rail) return;
+  const projectList = document.getElementById('projectList');
+  if (!projectList) return;
   try {
     const res = await fetch('/api/projects/');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     projectsCache = Array.isArray(data) ? data : (data.results || []);
+    
     if (!projectsCache.length) {
-      rail.innerHTML = '<span style="font-size:11px;color:var(--muted);padding:2px 0">No projects</span>';
+      projectList.innerHTML = '<span style="font-size:11px;color:var(--muted);padding:8px">No projects</span>';
       return;
     }
+
     const currentPid = new URLSearchParams(window.location.search).get('project');
     const currentPage = new URLSearchParams(window.location.search).get('page') || 'overview';
-    rail.innerHTML = projectsCache.map((p, i) => {
-      const initials = (p.name || '').split(/\s+/).map(w => w[0]).join('').substring(0, 2).toUpperCase();
-      const bg = PRJ_GRADIENTS[i % PRJ_GRADIENTS.length];
-      const isActive = p.id === currentPid;
+    
+    // Set global current project (use first if not specified)
+    currentProjectId = currentPid || projectsCache[0]?.id;
+    currentPageType = currentPage;
+    
+    projectList.innerHTML = projectsCache.map((p, i) => {
+      const isActive = p.id === currentProjectId;
       const statusCls = (p.status || 'active').toLowerCase().replace(/\s+/g, '_');
-      const overviewUrl = `project_dashboard.html?project=${p.id}&page=overview`;
-      const integrationsUrl = `project_dashboard.html?project=${p.id}&page=integrations`;
-      return `<div class="prj-item${isActive ? ' active-prj' : ''}" data-label="${esc(p.name)}" data-idx="${i}" onclick="navigateToPage('${p.id}','overview')" onmouseenter="showProjectFlyout(event,${i})" onmouseleave="hideProjectFlyout()">`
-        + `<span class="prj-name">${esc(p.name)}</span>`
-        + `<span class="prj-status-dot s-${statusCls}"></span></div>`
-        + `<div class="prj-sub-links${isActive ? ' expanded' : ''}">`
-        + `<a class="prj-sub-link${isActive && currentPage === 'overview' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','overview')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span class="nav-label">Overview</span></a>`
-        + `<a class="prj-sub-link${isActive && currentPage === 'decisions' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','decisions')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="nav-label">Decisions</span></a>`
-        + `<a class="prj-sub-link${isActive && currentPage === 'integrations' ? ' active-sub' : ''}" href="javascript:void(0)" onclick="navigateToPage('${p.id}','integrations')"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span class="nav-label">Ecosystem</span></a>`
-        + `</div>`;
+      
+      return `<div class="project-item${isActive ? ' expanded' : ''}" data-project-id="${p.id}">
+        <div class="project-item-header ${isActive ? 'active' : ''}" onclick="toggleProjectItem(this)">
+          <svg class="project-item-toggle" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          <span>${esc(p.name)}</span>
+        </div>
+        <div class="project-sub-items">
+          <a href="#" class="project-sub-item ${isActive && currentPage === 'overview' ? 'active' : ''}" onclick="navigateToPage('${p.id}', 'overview'); return false;">
+            <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>Overview</span>
+          </a>
+          <a href="#" class="project-sub-item ${isActive && currentPage === 'decisions' ? 'active' : ''}" onclick="navigateToPage('${p.id}', 'decisions'); return false;">
+            <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Decisions</span>
+          </a>
+          <a href="#" class="project-sub-item ${isActive && currentPage === 'integrations' ? 'active' : ''}" onclick="navigateToPage('${p.id}', 'integrations'); return false;">
+            <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <span>Ecosystem</span>
+          </a>
+        </div>
+      </div>`;
     }).join('');
-    // Update page title with the active project name
-    updatePageTitle(currentPid);
-
-    // ── Auto-add logged-in user to the project team ──
+    
+    // Update page title
+    updatePageTitle(currentProjectId);
+    
+    // Auto-add logged-in user to the project team
     await ensureUserInProjectTeam();
   } catch (e) {
-    console.error('Failed to load project rail:', e);
-    rail.innerHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
+    console.error('Failed to load project list:', e);
+    projectList.innerHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
   }
 }
+
+function toggleProjectItem(headerEl) {
+  const projectItem = headerEl.closest('.project-item');
+  if (!projectItem) return;
+  projectItem.classList.toggle('expanded');
+}
+
+// Expose to window for onclick handlers
+window.toggleProjectItem = toggleProjectItem;
 
 /**
  * Ensures the currently logged-in user is part of the active project's team_members.
@@ -1379,12 +1461,13 @@ function navigateToPage(projectId, page) {
 
   // If switching to overview, rebuild timeline + sprint panel
   if (page === 'overview') {
-    document.getElementById('topbarSub').textContent = `${SPRINTS.length} sprints`;
+    const filteredSprints = getProjectSprints(projectId);
+    document.getElementById('topbarSub').textContent = `${filteredSprints.length} sprints`;
     loadProjectTicketStats();
     buildTimeline();
-    if (SPRINTS.length) {
+    if (filteredSprints.length) {
       activeSprint = null; // force re-render
-      selectSprint((SPRINTS.find(s => s.status === 'current') || SPRINTS[0]).id);
+      selectSprint((filteredSprints.find(s => s.status === 'current') || filteredSprints[0]).id);
     }
   }
 }
@@ -1533,13 +1616,27 @@ function renderProjectSummary() {
   const tags = project.tags ? (typeof project.tags === 'string' ? project.tags.split(',').map(t => t.trim()) : project.tags) : [];
   const description = project.description || null;
 
-  // Build a flowing prose summary
+  // Build a flowing prose summary using actual project data
   let sentences = [];
 
-  sentences.push(`A web application where HR creates onboarding task templates, managers assign tasks to new employees, and employees track their onboarding progress. The system sends automated reminders for incomplete tasks.`);
-  sentences.push(`Built with React, Django, and PostgreSQL. Currently active with ${members.length} team member${members.length !== 1 ? 's' : ''} across 1 completed sprint.`);
+  // Use project description if available
+  if (description) {
+    sentences.push(esc(description));
+  } else {
+    sentences.push(`Project with ${members.length} team member${members.length !== 1 ? 's' : ''}.`);
+  }
 
-  // Render summary as before
+  // Add tech stack if available
+  if (tags && tags.length > 0) {
+    sentences.push(`Built with ${tags.map(t => esc(t)).join(', ')}.`);
+  }
+
+  // Add timeline info
+  if (startFmt && endFmt) {
+    sentences.push(`Timeline: ${startFmt} — ${endFmt}.`);
+  }
+
+  // Render summary with actual project data
   banner.innerHTML = `
     <div class="ps-header">
       <div class="ps-label">
@@ -2104,3 +2201,141 @@ function submitIntegration(e) {
 }
 window.submitIntegration = submitIntegration;
 
+// ════════════════════════════════════════════════════════════════════════════════
+// DECISIONS TIMELINE EXPAND/COLLAPSE
+// ════════════════════════════════════════════════════════════════════════════════
+
+function expandDecisionsTimeline() {
+  const main = document.querySelector('.main');
+  const sidebar = document.querySelector('.sidebar');
+  const body = document.body;
+  const decisionsContent = document.getElementById('decisionsContent');
+  const decisionCard = document.getElementById('decisionCard');
+  const decisionBody = document.getElementById('decisionMapPageContainer');
+  const topbar = document.querySelector('.topbar');
+  const expandBtn = document.getElementById('expandDecisionsBtn');
+  
+  // Toggle fullscreen state
+  const isExpanded = main.classList.contains('decisions-expanded');
+  
+  if (!isExpanded) {
+    // Enter fullscreen
+    body.style.overflow = 'hidden';
+    main.classList.add('decisions-expanded');
+    sidebar.classList.add('collapsed-for-fullscreen');
+    decisionsContent.classList.add('fullscreen');
+    decisionCard.classList.add('fullscreen');
+    decisionBody.classList.add('fullscreen');
+    if (topbar) topbar.style.display = 'flex';
+    
+    // Update expand button to close icon
+    expandBtn.innerHTML = '<svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 3 3 3 3 9"/><polyline points="15 21 21 21 21 15"/><line x1="3" y1="21" x2="21" y2="3"/></svg>';
+    expandBtn.title = 'Exit fullscreen';
+  } else {
+    // Exit fullscreen
+    body.style.overflow = '';
+    main.classList.remove('decisions-expanded');
+    sidebar.classList.remove('collapsed-for-fullscreen');
+    decisionsContent.classList.remove('fullscreen');
+    decisionCard.classList.remove('fullscreen');
+    decisionBody.classList.remove('fullscreen');
+    if (topbar) topbar.style.display = '';
+    
+    // Update expand button back to original icon
+    expandBtn.innerHTML = '<svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="3" y2="21"/></svg>';
+    expandBtn.title = 'Expand to fullscreen';
+  }
+}
+window.expandDecisionsTimeline = expandDecisionsTimeline;
+
+/**
+ * Toggle the Projects section expand/collapse state
+ */
+function toggleProjectsSection() {
+  const projectList = document.getElementById('projectList');
+  const projectsHeader = document.getElementById('projectsSectionHeader');
+  const sidebar = document.getElementById('sidebar');
+  
+  if (!projectList || !projectsHeader) return;
+  
+  // Don't allow expanding projects when sidebar is collapsed
+  if (sidebar && sidebar.classList.contains('collapsed')) {
+    return;
+  }
+  
+  // Toggle collapsed class
+  const isCollapsed = projectList.classList.contains('collapsed');
+  
+  if (isCollapsed) {
+    // Expand
+    projectList.classList.remove('collapsed');
+    projectsHeader.classList.remove('collapsed');
+  } else {
+    // Collapse
+    projectList.classList.add('collapsed');
+    projectsHeader.classList.add('collapsed');
+  }
+  
+  // Save state to localStorage
+  localStorage.setItem('projectsCollapsed', isCollapsed ? 'false' : 'true');
+}
+window.toggleProjectsSection = toggleProjectsSection;
+
+/**
+ * Toggle the My Profile section expand/collapse state
+ */
+function toggleProfileSection() {
+  const profileSection = document.getElementById('profileSection');
+  const profileHeader = document.getElementById('profileSectionHeader');
+  
+  if (!profileSection || !profileHeader) return;
+  
+  // Toggle collapsed class
+  const isCollapsed = profileSection.classList.contains('collapsed');
+  
+  if (isCollapsed) {
+    // Expand
+    profileSection.classList.remove('collapsed');
+    profileHeader.classList.remove('collapsed');
+  } else {
+    // Collapse
+    profileSection.classList.add('collapsed');
+    profileHeader.classList.add('collapsed');
+  }
+  
+  // Save state to localStorage
+  localStorage.setItem('profileCollapsed', isCollapsed ? 'false' : 'true');
+}
+window.toggleProfileSection = toggleProfileSection;
+
+// ── Initialize Section States on Load ────────────────────────
+function initSectionStates() {
+  const projectsCollapsed = localStorage.getItem('projectsCollapsed') === 'true';
+  const profileCollapsed = localStorage.getItem('profileCollapsed') === 'true';
+  
+  const projectList = document.getElementById('projectList');
+  const projectsHeader = document.getElementById('projectsSectionHeader');
+  const profileSection = document.getElementById('profileSection');
+  const profileHeader = document.getElementById('profileSectionHeader');
+  
+  if (projectList && projectsHeader) {
+    if (projectsCollapsed) {
+      projectList.classList.add('collapsed');
+      projectsHeader.classList.add('collapsed');
+    } else {
+      projectList.classList.remove('collapsed');
+      projectsHeader.classList.remove('collapsed');
+    }
+  }
+  
+  if (profileSection && profileHeader) {
+    if (profileCollapsed) {
+      profileSection.classList.add('collapsed');
+      profileHeader.classList.add('collapsed');
+    } else {
+      profileSection.classList.remove('collapsed');
+      profileHeader.classList.remove('collapsed');
+    }
+  }
+}
+window.initSectionStates = initSectionStates;

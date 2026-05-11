@@ -1295,18 +1295,63 @@ PROGRESS: {done}/{total} ({completion_pct:.0f}%)
         return documents
 
     def _retrieve_general(self, query: str, entities: List[str], limit: int) -> List[Document]:
-        """General fallback."""
+        """
+        General fallback retrieval that searches across all document types
+        using keyword matching when intent is unclear.
+        """
         documents = []
+        seen_ids = set()
         
-        decisions = Decision.objects.filter(status='active').order_by('-decision_date')[:3]
-        for d in decisions:
-            documents.append(self._decision_to_document(d))
+        # Extract search terms from query (exclude common stopwords)
+        stopwords = {
+            'what', 'where', 'when', 'how', 'why', 'are', 'were', 'is', 'be', 
+            'the', 'a', 'an', 'and', 'or', 'of', 'in', 'to', 'for', 'by',
+            'with', 'can', 'tell', 'show', 'give', 'me', 'us', 'you', 'your',
+            'should', 'do', 'does', 'have', 'has', 'been', 'about', 'any'
+        }
+        query_terms = [w for w in query.lower().split() if len(w) > 2 and w not in stopwords]
         
-        overview = ConfluencePage.objects.filter(
-            Q(title__icontains='overview') | Q(title__icontains='project')
-        ).first()
-        if overview:
-            documents.append(self._confluence_to_document(overview))
+        # Search decisions with flexible keyword matching
+        q_decisions = Q()
+        for term in query_terms:
+            q_decisions |= Q(title__icontains=term) | Q(description__icontains=term) | Q(rationale__icontains=term)
+        
+        if q_decisions:
+            for decision in Decision.objects.filter(status='active').filter(q_decisions).order_by('-decision_date')[:limit]:
+                doc_id = f"decision_{decision.id}"
+                if doc_id not in seen_ids:
+                    documents.append(self._decision_to_document(decision))
+                    seen_ids.add(doc_id)
+                if len(documents) >= limit:
+                    break
+        
+        # If not enough results, add most recent decisions
+        if len(documents) < limit:
+            for decision in Decision.objects.filter(status='active').order_by('-decision_date')[:limit - len(documents)]:
+                doc_id = f"decision_{decision.id}"
+                if doc_id not in seen_ids:
+                    documents.append(self._decision_to_document(decision))
+                    seen_ids.add(doc_id)
+        
+        # Search Confluence pages
+        q_confluence = Q()
+        for term in query_terms:
+            q_confluence |= Q(title__icontains=term) | Q(content__icontains=term)
+        
+        if q_confluence and len(documents) < limit:
+            for page in ConfluencePage.objects.filter(q_confluence)[:limit - len(documents)]:
+                doc_id = f"confluence_{page.id}"
+                if doc_id not in seen_ids:
+                    documents.append(self._confluence_to_document(page))
+                    seen_ids.add(doc_id)
+        
+        # Search meetings
+        if len(documents) < limit:
+            for meeting in Meeting.objects.order_by('-meeting_date')[:limit - len(documents)]:
+                doc_id = f"meeting_{meeting.id}"
+                if doc_id not in seen_ids:
+                    documents.append(self._meeting_to_document(meeting))
+                    seen_ids.add(doc_id)
         
         return documents[:limit]
 

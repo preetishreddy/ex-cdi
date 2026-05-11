@@ -426,3 +426,42 @@ class Decision(models.Model):
 
     def __str__(self):
         return f"{self.decision_date}: {self.title[:50]}"
+
+
+class DecisionConflict(models.Model):
+    """
+    Records a detected conflict between two active decisions.
+    Populated by check_conflicts.py.
+    """
+
+    CONFLICT_TYPE_CHOICES = [
+        ('direct',   'Direct'),    # mutually exclusive choices (e.g. Material UI vs Tailwind)
+        ('indirect', 'Indirect'),  # tension that may cause problems (e.g. two DB access layers)
+        ('potential','Potential'), # flagged for human review; LLM uncertain
+    ]
+
+    SEVERITY_CHOICES = [
+        ('low',    'Low'),
+        ('medium', 'Medium'),
+        ('high',   'High'),
+    ]
+
+    id            = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    decision_a    = models.ForeignKey(
+        Decision, on_delete=models.CASCADE, related_name='conflicts_as_a', db_column='decision_a_id'
+    )
+    decision_b    = models.ForeignKey(
+        Decision, on_delete=models.CASCADE, related_name='conflicts_as_b', db_column='decision_b_id'
+    )
+    conflict_type = models.CharField(max_length=50, choices=CONFLICT_TYPE_CHOICES)
+    explanation   = models.TextField(blank=True, null=True)
+    severity      = models.CharField(max_length=10, choices=SEVERITY_CHOICES)
+    detected_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'decision_conflicts'
+        managed  = False
+        unique_together = [('decision_a', 'decision_b')]
+
+    def __str__(self):
+        return f"[{self.severity.upper()}] {self.decision_a.title[:40]} ↔ {self.decision_b.title[:40]}"
